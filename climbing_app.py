@@ -4,7 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 st.set_page_config(page_title="Climbing Dashboard", layout="wide", page_icon="🧗‍♂️")
-st.title("🧗‍♂️ Climbing Tracking Dashboard")
+st.title("## 🧗‍♂️ Climbing Tracking Dashboard")
 
 # --- CARICAMENTO E PULIZIA DATI ---
 SHEET_ID = "1aeCcRAt7baHVt3P75YTq_rSxSKOzwbjuCLpAcgIyc3Q"
@@ -50,28 +50,76 @@ color_map_status = {
     'red point': '#d62728' 
 }
 
-# --- SIDEBAR GENERALE ---
-st.sidebar.header("Filtri Globali")
-available_types_global = df_lines['climbing_type'].dropna().unique()
-# Scegliamo un default sicuro (es. se rock climbing non c'è, prende il primo disponibile)
-default_type_global = ['rock climbing'] if 'rock climbing' in available_types_global else (available_types_global[:1] if len(available_types_global)>0 else [])
-selected_type = st.sidebar.multiselect("Tipo di Arrampicata", available_types_global, default=default_type_global)
-df_filtered = df_lines[df_lines['climbing_type'].isin(selected_type)]
-
-
 # --- SEZIONE 1: GENERALE ---
-st.header("📊 Overview Volume")
-df_vol = df_lines.groupby(['month', 'climbing_type'])['session_id'].nunique().reset_index(name='sessions')
+st.markdown("### 📊 Overview Volume")
+
+# Conta le sessioni
+# --- SEZIONE 1: GENERALE ---
+st.markdown("### 📊 Overview Volume")
+
+# 1. Estrai le colonne chiave, aggiungendo 'description' (Luogo)
+df_daily = df_lines[['session_id', 'date', 'month', 'climbing_type', 'description']].dropna(subset=['climbing_type']).drop_duplicates()
+
+# 2. Isoliamo le combinazioni esatte [Data + Luogo] dominanti
+idx_indoor_rope = df_daily[df_daily['climbing_type'] == 'indoor climbing'].set_index(['date', 'description']).index
+idx_rock_rope = df_daily[df_daily['climbing_type'] == 'rock climbing'].set_index(['date', 'description']).index
+
+# 3. Creiamo lo stesso indice per tutte le righe attuali per poterle confrontare
+current_idx = df_daily.set_index(['date', 'description']).index
+
+# 4. Regole di esclusione: scarta il boulder/trad SOLO se Data E Luogo coincidono con la corda
+drop_indoor_boulder = (df_daily['climbing_type'] == 'indoor boulder') & current_idx.isin(idx_indoor_rope)
+drop_trad = (df_daily['climbing_type'] == 'trad climbing') & current_idx.isin(idx_rock_rope)
+
+# 5. Applica le regole e tieni solo le sessioni valide
+df_daily_clean = df_daily[~(drop_indoor_boulder | drop_trad)]
+
+# 6. Conta le sessioni
+df_vol = df_daily_clean.groupby(['month', 'climbing_type'])['session_id'].nunique().reset_index(name='sessions')
 df_vol = df_vol.sort_values('month')
+
+# 1. Definisci l'ordine dal basso verso l'alto
+type_order = [
+    'indoor boulder', 
+    'indoor climbing', 
+    'rock boulder', 
+    'rock climbing', 
+    'trad climbing', 
+    'multipitch'
+]
+
+# 2. Definisci la palette di colori fissa
+color_map_types = {
+    'indoor boulder': '#ffb6c1',  # Rosa
+    'indoor climbing': '#ff3333', # Rosso
+    'rock boulder': '#7bc8f6',    # Azzurro
+    'rock climbing': '#0062cc',   # Blu scuro
+    'trad climbing': '#86f2a2',   # Verdino
+    'multipitch': '#2eb09a'       # Verdone
+}
+
+# 3. Applica ordine e colori al grafico
 fig_vol = px.bar(df_vol, x='month', y='sessions', color='climbing_type', 
-                 title="Numero di Sessioni Mensili", barmode='stack')
-fig_vol.update_layout(xaxis_title="Mese", yaxis_title="Sessioni", legend_title="Tipo", margin=dict(l=0, r=0, t=40, b=0))
+                 barmode='stack',
+                 category_orders={'climbing_type': type_order},
+                 color_discrete_map=color_map_types)
+
+fig_vol.update_layout(
+    title_text="Numero di Sessioni Mensili",
+    title_font=dict(size=14),
+    xaxis_title="Mese", 
+    yaxis_title="Sessioni", 
+    legend_title="", # Tolgo il titolo "climbing_type" per risparmiare spazio
+    margin=dict(l=0, r=0, t=40, b=0),
+    legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5)
+)
+
 st.plotly_chart(fig_vol, use_container_width=True)
 
 
 # --- SEZIONE 2: CORDA ---
 st.header("🪢 Arrampicata su Corda")
-df_rope = df_lines[df_lines['climbing_type'].isin(['rock climbing', 'indoor climbing'])].copy()
+df_rope = df_lines[df_lines['climbing_type'].isin(['rock climbing', 'indoor climbing','trad climbing'])].copy()
 df_rope['grade_numeric'] = df_rope['grade'].map(grade_order_rope)
 
 with st.expander("🔍 Filtri Corda"):
@@ -83,10 +131,10 @@ with st.expander("🔍 Filtri Corda"):
     r_status = st.multiselect("Status", available_status, default=safe_defaults_status)
     
     available_styles = df_rope['climbing_style'].dropna().unique()
-    r_style = st.multiselect("Stile", available_styles, default=available_styles)
+    r_style = st.multiselect("Stile", available_styles, default="lead") 
     
     available_holds = df_rope['holds_type'].dropna().unique()
-    r_holds = st.multiselect("Prese", available_holds, default=available_holds)
+    r_holds = st.multiselect("Prese", available_holds)
 
 df_rope_filt = df_rope[
     (df_rope['climbing_type'].isin(r_types)) &
@@ -96,17 +144,40 @@ df_rope_filt = df_rope[
 ]
 
 if not df_rope_filt.empty:
-    df_pyramid = df_rope_filt.groupby('grade').size().reset_index(name='count')
+    df_pyramid = df_rope_filt.groupby(['grade', 'status']).size().reset_index(name='count')
     df_pyramid['numeric'] = df_pyramid['grade'].map(grade_order_rope)
     df_pyramid = df_pyramid.sort_values('numeric', ascending=True)
-    fig_pyr = px.bar(df_pyramid, x='count', y='grade', orientation='h', title="Piramide dei Gradi Globale", text='count')
-    fig_pyr.update_layout(margin=dict(l=0, r=0, t=40, b=0))
+    
+    fig_pyr = px.bar(df_pyramid, x='count', y='grade', color='status', orientation='h', 
+                     title="Piramide dei Gradi Globale", text='count',
+                     color_discrete_map=color_map_status)
+                     
+    fig_pyr.update_layout(barmode='stack', margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
     st.plotly_chart(fig_pyr, use_container_width=True)
 
-    df_pyr_month = df_rope_filt.groupby(['month', 'grade']).size().reset_index(name='count')
-    fig_pyr_m = px.bar(df_pyr_month, x='month', y='count', color='grade', title="Volume Gradi per Mese",
-                       category_orders={'grade': list_grades_rope})
-    fig_pyr_m.update_layout(margin=dict(l=0, r=0, t=40, b=0))
+    def group_grade(g):
+        g = str(g)
+        if g.startswith(('3', '4', '5')):
+            return g[0] # Ritorna solo '3', '4' o '5'
+        elif len(g) >= 2:
+            return g[:2] # Ritorna '6a', '6b', ecc., tagliando via il '+'
+        return g
+
+    # Creiamo un dataframe temporaneo assegnando la nuova colonna per non intaccare gli altri grafici
+    df_temp_pyr = df_rope_filt.assign(grade_grouped=df_rope_filt['grade'].apply(group_grade))
+    
+    # Raggruppiamo per mese e per il nuovo grado raggruppato
+    df_pyr_month = df_temp_pyr.groupby(['month', 'grade_grouped']).size().reset_index(name='count')
+    
+    # Creiamo l'ordine corretto per le categorie raggruppate
+    grouped_order = ['3', '4', '5', '6a', '6b', '6c', '7a', '7b', '7c', '8a', '8b', '8c']
+    
+    # Creiamo il grafico
+    fig_pyr_m = px.bar(df_pyr_month, x='month', y='count', color='grade_grouped', 
+                       title="Volume Gradi per Mese",
+                       category_orders={'grade_grouped': grouped_order},
+                       labels={'grade_grouped': 'Grado'})
+    fig_pyr_m.update_layout(margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
     st.plotly_chart(fig_pyr_m, use_container_width=True)
 
     df_max = df_rope_filt.groupby(['month'])['grade_numeric'].max().reset_index()
@@ -114,7 +185,8 @@ if not df_rope_filt.empty:
     df_max['max_grade'] = df_max['grade_numeric'].map(reverse_rope)
     fig_max = px.line(df_max, x='month', y='max_grade', markers=True, title="Grado Massimo Mensile Assoluto",
                       category_orders={'max_grade': list_grades_rope})
-    fig_max.update_layout(margin=dict(l=0, r=0, t=40, b=0))
+    fig_max.update_layout(margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
+    fig_max.update_yaxes(categoryorder='array', categoryarray=list_grades_rope)
     st.plotly_chart(fig_max, use_container_width=True)
 
     df_max_stat = df_rope_filt.groupby(['month', 'status'])['grade_numeric'].max().reset_index()
@@ -123,7 +195,8 @@ if not df_rope_filt.empty:
                            title="Max Grado Mensile per Status",
                            color_discrete_map=color_map_status,
                            category_orders={'max_grade': list_grades_rope})
-    fig_max_stat.update_layout(margin=dict(l=0, r=0, t=40, b=0))
+    fig_max_stat.update_layout(margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
+    fig_max_stat.update_yaxes(categoryorder='array', categoryarray=list_grades_rope)
     st.plotly_chart(fig_max_stat, use_container_width=True)
 else:
     st.info("Nessun dato per i filtri selezionati.")
@@ -154,7 +227,7 @@ if not df_boulder_filt.empty:
     df_bp_month = df_boulder_filt.groupby(['month', 'grade']).size().reset_index(name='count')
     fig_bp_m = px.bar(df_bp_month, x='month', y='count', color='grade', title="Volume Blocchi per Mese",
                       color_discrete_map=color_map_boulder, category_orders={'grade': list_grades_boulder})
-    fig_bp_m.update_layout(margin=dict(l=0, r=0, t=40, b=0))
+    fig_bp_m.update_layout(margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
     st.plotly_chart(fig_bp_m, use_container_width=True)
 
     df_bm_stat = df_boulder_filt.groupby(['month', 'status'])['grade_numeric'].max().reset_index()
@@ -164,34 +237,48 @@ if not df_boulder_filt.empty:
                           title="Max Colore Mensile per Status",
                           color_discrete_map=color_map_status,
                           category_orders={'max_grade': list_grades_boulder})
-    fig_bm_stat.update_layout(margin=dict(l=0, r=0, t=40, b=0))
+    fig_bm_stat.update_layout(margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
     st.plotly_chart(fig_bm_stat, use_container_width=True)  
 else:
     st.info("Nessun dato per i filtri selezionati.")
 
-
 # --- SEZIONE 4: MULTIPITCH ---
 st.markdown("---")
-st.header("⛰️ Multipitch & Trad")
+st.header("⛰️ Multipitch")
 
 df_multi = df_lines[df_lines['climbing_type'] == 'multipitch'].copy()
 
 if not df_multi.empty:
+    # Flag Trad
     df_multi['is_trad'] = df_multi['comment'].astype(str).str.contains(r'trad|integrare', case=False, na=False)
     
-    col_a, col_b = st.columns(2)
-    col_a.metric("Totale Vie Lunghe", len(df_multi))
-    col_b.metric("Di cui Trad/Integrare", df_multi['is_trad'].sum())
+    # Nuovo Flag Completata (True se diverso da 'not finished')
+    df_multi['is_finished'] = df_multi['status'].astype(str).str.lower() != 'not finished'
     
-    df_multi_view = df_multi[['date', 'description', 'grade', 'comment', 'is_trad']].sort_values('date', ascending=False)
+    col_a, col_b = st.columns(2)
+    col_a.metric("Totale Vie Lunghe completate", df_multi['is_finished'].sum())
+    col_b.metric("Di cui Trad/Integrare", df_multi[df_multi['is_finished']]['is_trad'].sum())
+    
+    # IMPORTANTE: Aggiunto 'name' e 'is_finished' all'estrazione per evitare errori
+    df_multi_view = df_multi[['date', 'description', 'name', 'grade', 'comment', 'is_trad', 'is_finished']].sort_values('date', ascending=False)
     df_multi_view['date'] = df_multi_view['date'].dt.strftime('%d/%m/%Y')
     
     def format_description(row):
         return f"🛡️ {row['description']}" if row['is_trad'] else row['description']
         
     df_multi_view['description'] = df_multi_view.apply(format_description, axis=1)
-    df_multi_view = df_multi_view.rename(columns={'date': 'Data', 'description': 'Via', 'grade': 'Grado', 'comment': 'Note'})
     
-    st.dataframe(df_multi_view[['Data', 'Via', 'Grado', 'Note']], use_container_width=True, hide_index=True)
+    # Rinomina per la UI
+    df_multi_view = df_multi_view.rename(columns={
+        'date': 'Data', 
+        'description': 'Via', 
+        'grade': 'Grado', 
+        'comment': 'Note', 
+        'name': 'Socio',
+        'is_finished': 'Completata'
+    })
+    
+    # Visualizza la tabella includendo Socio e Completata
+    st.dataframe(df_multi_view[['Data', 'Via', 'Grado', 'Socio', 'Note', 'Completata']], use_container_width=True, hide_index=True)
 else:
     st.info("Nessuna via lunga registrata finora.")
