@@ -4,7 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 st.set_page_config(page_title="Climbing Dashboard", layout="wide", page_icon="🧗‍♂️")
-st.title("## 🧗‍♂️ Climbing Tracking Dashboard")
+st.markdown("## 🧗‍♂️ My Climbing Dashboard")
 
 # --- CARICAMENTO E PULIZIA DATI ---
 SHEET_ID = "1aeCcRAt7baHVt3P75YTq_rSxSKOzwbjuCLpAcgIyc3Q"
@@ -50,10 +50,6 @@ color_map_status = {
     'red point': '#d62728' 
 }
 
-# --- SEZIONE 1: GENERALE ---
-st.markdown("### 📊 Overview Volume")
-
-# Conta le sessioni
 # --- SEZIONE 1: GENERALE ---
 st.markdown("### 📊 Overview Volume")
 
