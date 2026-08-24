@@ -21,6 +21,11 @@ def load_and_clean_data():
     df_lines['date'] = pd.to_datetime(df_lines['date'], errors='coerce')
     df_sessions['month'] = df_sessions['date'].dt.to_period('M').astype(str)
     df_lines['month'] = df_lines['date'].dt.to_period('M').astype(str)
+    # Generazione aggregazioni temporali (Mese, Trimestre, Semestre, Anno)
+    valid_dates = df_lines['date'].notna()
+    df_lines.loc[valid_dates, 'year'] = df_lines.loc[valid_dates, 'date'].dt.year.astype(int).astype(str)
+    df_lines.loc[valid_dates, 'quarter'] = df_lines.loc[valid_dates, 'date'].dt.to_period('Q').astype(str)
+    df_lines.loc[valid_dates, 'semester'] = df_lines.loc[valid_dates, 'date'].dt.year.astype(int).astype(str) + "-H" + ((df_lines.loc[valid_dates, 'date'].dt.month - 1) // 6 + 1).astype(str)
 
     # 2. Pulizia Stringhe (Lower case e strip spazi) per evitare errori di case-sensitivity
     string_cols = ['climbing_type', 'grade', 'status', 'climbing_style', 'holds_type']
@@ -47,14 +52,51 @@ color_map_status = {
     'on sight': '#1f77b4', 
     'flash': '#2ca02c',    
     'redpoint': '#d62728', 
-    'red point': '#d62728' 
+    'red point': '#d62728',
+    'on sight / flash': '#17becf' # Un colore ciano brillante per l'accorpamento
 }
+
+# --- SIDEBAR GENERALE ---
+st.sidebar.header("Filtri Globali")
+
+# 1. Filtro Anno (Vuoto = Tutti)
+available_years = sorted(df_lines['year'].dropna().unique(), reverse=True)
+selected_years = st.sidebar.multiselect("Anno", available_years, default=[], help="Lascia vuoto per selezionare tutti")
+years_to_filter = selected_years if selected_years else available_years
+
+# 2. Filtro Grado (Vuoto = Tutti)
+# Ordiniamo i gradi disponibili in ordine alfabetico/numerico
+available_grades = sorted(df_lines['grade'].dropna().unique())
+selected_grades = st.sidebar.multiselect("Grado", available_grades, default=[], help="Lascia vuoto per selezionare tutti")
+grades_to_filter = selected_grades if selected_grades else available_grades
+
+# 3. Aggregazione Temporale (Switch per i grafici)
+time_agg_map = {"Mese": "month", "Trimestre": "quarter", "Semestre": "semester", "Anno": "year"}
+selected_time_agg = st.sidebar.selectbox("Aggregazione Temporale", list(time_agg_map.keys()))
+time_col = time_agg_map[selected_time_agg] 
+
+# 4. Accorpamento On Sight e Flash
+merge_flash_os = st.sidebar.checkbox("Accorpa Flash e On Sight")
+
+# APPLICAZIONE FILTRI GLOBALI
+df_lines = df_lines[
+    df_lines['year'].isin(years_to_filter) & 
+    df_lines['grade'].isin(grades_to_filter)
+].copy()
+
+if merge_flash_os:
+    df_lines['status'] = df_lines['status'].replace({'flash': 'on sight / flash', 'on sight': 'on sight / flash'})
+
+
+
+if merge_flash_os:
+    df_lines['status'] = df_lines['status'].replace({'flash': 'on sight / flash', 'on sight': 'on sight / flash'})
 
 # --- SEZIONE 1: GENERALE ---
 st.markdown("### 📊 Overview Volume")
 
 # 1. Estrai le colonne chiave, aggiungendo 'description' (Luogo)
-df_daily = df_lines[['session_id', 'date', 'month', 'climbing_type', 'description']].dropna(subset=['climbing_type']).drop_duplicates()
+df_daily = df_lines[['session_id', 'date', time_col, 'climbing_type', 'description']].dropna(subset=['climbing_type']).drop_duplicates()
 
 # 2. Isoliamo le combinazioni esatte [Data + Luogo] dominanti
 idx_indoor_rope = df_daily[df_daily['climbing_type'] == 'indoor climbing'].set_index(['date', 'description']).index
@@ -71,8 +113,8 @@ drop_trad = (df_daily['climbing_type'] == 'trad climbing') & current_idx.isin(id
 df_daily_clean = df_daily[~(drop_indoor_boulder | drop_trad)]
 
 # 6. Conta le sessioni
-df_vol = df_daily_clean.groupby(['month', 'climbing_type'])['session_id'].nunique().reset_index(name='sessions')
-df_vol = df_vol.sort_values('month')
+df_vol = df_daily_clean.groupby([time_col, 'climbing_type'])['session_id'].nunique().reset_index(name='sessions')
+df_vol = df_vol.sort_values(time_col)
 
 # 1. Definisci l'ordine dal basso verso l'alto
 type_order = [
@@ -95,7 +137,7 @@ color_map_types = {
 }
 
 # 3. Applica ordine e colori al grafico
-fig_vol = px.bar(df_vol, x='month', y='sessions', color='climbing_type', 
+fig_vol = px.bar(df_vol, x=time_col, y='sessions', color='climbing_type', 
                  barmode='stack',
                  category_orders={'climbing_type': type_order},
                  color_discrete_map=color_map_types)
@@ -123,7 +165,7 @@ with st.expander("🔍 Filtri Corda"):
     r_types = st.multiselect("Ambiente", available_types, default=available_types)
     
     available_status = df_rope['status'].dropna().unique()
-    safe_defaults_status = [s for s in ['on sight', 'flash', 'redpoint'] if s in available_status]
+    safe_defaults_status = [s for s in ['on sight', 'flash', 'redpoint', 'on sight / flash'] if s in available_status]
     r_status = st.multiselect("Status", available_status, default=safe_defaults_status)
     
     available_styles = df_rope['climbing_style'].dropna().unique()
@@ -162,38 +204,63 @@ if not df_rope_filt.empty:
     # Creiamo un dataframe temporaneo assegnando la nuova colonna per non intaccare gli altri grafici
     df_temp_pyr = df_rope_filt.assign(grade_grouped=df_rope_filt['grade'].apply(group_grade))
     
-    # Raggruppiamo per mese e per il nuovo grado raggruppato
-    df_pyr_month = df_temp_pyr.groupby(['month', 'grade_grouped']).size().reset_index(name='count')
+    # Raggruppiamo per time_col e per il nuovo grado raggruppato
+    df_pyr_month = df_temp_pyr.groupby([time_col, 'grade_grouped']).size().reset_index(name='count')
     
     # Creiamo l'ordine corretto per le categorie raggruppate
     grouped_order = ['3', '4', '5', '6a', '6b', '6c', '7a', '7b', '7c', '8a', '8b', '8c']
     
     # Creiamo il grafico
-    fig_pyr_m = px.bar(df_pyr_month, x='month', y='count', color='grade_grouped', 
+    fig_pyr_m = px.bar(df_pyr_month, x=time_col, y='count', color='grade_grouped', 
                        title="Volume Gradi per Mese",
                        category_orders={'grade_grouped': grouped_order},
                        labels={'grade_grouped': 'Grado'})
     fig_pyr_m.update_layout(margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
     st.plotly_chart(fig_pyr_m, use_container_width=True)
 
-    df_max = df_rope_filt.groupby(['month'])['grade_numeric'].max().reset_index()
+    df_max = df_rope_filt.groupby([time_col])['grade_numeric'].max().reset_index()
     reverse_rope = {v: k for k, v in grade_order_rope.items()}
     df_max['max_grade'] = df_max['grade_numeric'].map(reverse_rope)
-    fig_max = px.line(df_max, x='month', y='max_grade', markers=True, title="Grado Massimo Mensile Assoluto",
+    fig_max = px.line(df_max, x=time_col, y='max_grade', markers=True, title="Grado Massimo Mensile Assoluto",
                       category_orders={'max_grade': list_grades_rope})
     fig_max.update_layout(margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
     fig_max.update_yaxes(categoryorder='array', categoryarray=list_grades_rope)
     st.plotly_chart(fig_max, use_container_width=True)
 
-    df_max_stat = df_rope_filt.groupby(['month', 'status'])['grade_numeric'].max().reset_index()
+    df_max_stat = df_rope_filt.groupby([time_col, 'status'])['grade_numeric'].max().reset_index()
     df_max_stat['max_grade'] = df_max_stat['grade_numeric'].map(reverse_rope)
-    fig_max_stat = px.line(df_max_stat, x='month', y='max_grade', color='status', markers=True, 
+    fig_max_stat = px.line(df_max_stat, x=time_col, y='max_grade', color='status', markers=True, 
                            title="Max Grado Mensile per Status",
                            color_discrete_map=color_map_status,
                            category_orders={'max_grade': list_grades_rope})
     fig_max_stat.update_layout(margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
     fig_max_stat.update_yaxes(categoryorder='array', categoryarray=list_grades_rope)
     st.plotly_chart(fig_max_stat, use_container_width=True)
+    
+    # 2.5 Tabella Migliori Tiri
+    st.markdown("#### 🏆 I Migliori Tiri Completati")
+    
+    # Filtriamo solo le salite valide (ignorando i tentativi o le non chiuse)
+    valid_statuses = ['on sight', 'flash', 'redpoint', 'clean', 'on sight / flash']
+    df_best = df_rope_filt[df_rope_filt['status'].isin(valid_statuses)].copy()
+    
+    if not df_best.empty:
+        # Ordiniamo per grado numerico decrescente e per data più recente a parità di grado
+        df_best = df_best.sort_values(by=['grade_numeric', 'date'], ascending=[False, False])
+        
+        # Prendiamo i top 15 e le colonne più rilevanti
+        df_best_view = df_best[['date', 'description', 'name', 'grade', 'status', 'climbing_style', 'comment']].head(15).copy()
+        df_best_view['date'] = df_best_view['date'].dt.strftime('%d/%m/%Y')
+        
+        # Rinominiamo per estetica
+        df_best_view = df_best_view.rename(columns={
+            'date': 'Data', 'description': 'Luogo', 'name': 'Via', 
+            'grade': 'Grado', 'status': 'Status', 'climbing_style': 'Stile', 'comment': 'Note'
+        })
+        
+        st.dataframe(df_best_view, use_container_width=True, hide_index=True)
+    else:
+        st.info("Nessuna salita completata trovata con i filtri attuali.")
 else:
     st.info("Nessun dato per i filtri selezionati.")
 
@@ -211,7 +278,7 @@ with st.expander("🔍 Filtri Boulder"):
     b_types = st.multiselect("Ambiente Boulder", available_b_types, default=available_b_types)
     
     available_b_status = df_boulder['status'].dropna().unique()
-    safe_defaults_b_status = [s for s in ['on sight', 'flash', 'redpoint'] if s in available_b_status]
+    safe_defaults_b_status = [s for s in ['on sight', 'flash', 'redpoint', 'on sight / flash'] if s in available_b_status]
     b_status = st.multiselect("Status Boulder", available_b_status, default=safe_defaults_b_status)
 
 df_boulder_filt = df_boulder[
@@ -220,20 +287,27 @@ df_boulder_filt = df_boulder[
 ]
 
 if not df_boulder_filt.empty:
-    df_bp_month = df_boulder_filt.groupby(['month', 'grade']).size().reset_index(name='count')
-    fig_bp_m = px.bar(df_bp_month, x='month', y='count', color='grade', title="Volume Blocchi per Mese",
-                      color_discrete_map=color_map_boulder, category_orders={'grade': list_grades_boulder})
-    fig_bp_m.update_layout(margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
+    # --- PIRAMIDE BLOCCHI NEL TEMPO ---
+    df_bp_month = df_boulder_filt.groupby([time_col, 'grade']).size().reset_index(name='count')
+    fig_bp_m = px.bar(df_bp_month, x=time_col, y='count', color='grade', title="Volume Blocchi nel Tempo",
+                      color_discrete_map=color_map_boulder, 
+                      category_orders={'grade': list_grades_boulder})
+                      
+    fig_bp_m.update_layout(margin=dict(l=0, r=0, t=40, b=0), legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
     st.plotly_chart(fig_bp_m, use_container_width=True)
 
-    df_bm_stat = df_boulder_filt.groupby(['month', 'status'])['grade_numeric'].max().reset_index()
+    # --- GRAFICO LINEE GRADO MASSIMO ---
+    df_bm_stat = df_boulder_filt.groupby([time_col, 'status'])['grade_numeric'].max().reset_index()
     reverse_boulder = {v: k for k, v in grade_order_boulder.items()}
     df_bm_stat['max_grade'] = df_bm_stat['grade_numeric'].map(reverse_boulder)
-    fig_bm_stat = px.line(df_bm_stat, x='month', y='max_grade', color='status', markers=True, 
-                          title="Max Colore Mensile per Status",
-                          color_discrete_map=color_map_status,
-                          category_orders={'max_grade': list_grades_boulder})
-    fig_bm_stat.update_layout(margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
+    
+    fig_bm_stat = px.line(df_bm_stat, x=time_col, y='max_grade', color='status', markers=True, 
+                          title="Max Colore per Status",
+                          color_discrete_map=color_map_status)
+                          
+    fig_bm_stat.update_layout(margin=dict(l=0, r=0, t=40, b=0), legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
+    fig_bm_stat.update_yaxes(categoryorder='array', categoryarray=list_grades_boulder) 
+    
     st.plotly_chart(fig_bm_stat, use_container_width=True)  
 else:
     st.info("Nessun dato per i filtri selezionati.")
