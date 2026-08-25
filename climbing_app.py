@@ -253,15 +253,17 @@ if not df_rope_filt.empty:
     df_pyramid['numeric'] = df_pyramid['grade'].map(grade_order_rope)
     df_pyramid = df_pyramid.sort_values('numeric', ascending=True)
     
+    # 1. CREIAMO LA COLONNA PRIMA DEL GRAFICO
+    df_pyramid['text_label'] = df_pyramid['count'].apply(lambda x: str(x) if x > 2 else "")
+    
+    # 2. CREIAMO IL GRAFICO PASSANDO LA NUOVA COLONNA
     fig_pyr = px.bar(df_pyramid, x='count', y='grade', color='status', orientation='h', 
-                     title="Piramide dei Gradi Globale", text='count',
+                     title="Piramide dei Gradi Globale", text='text_label',
                      color_discrete_map=color_map_status,
                      category_orders={'status': list_status_order})
-
-    # Calcola i totali per grado
+                     
+    # 3. AGGIUNGIAMO I TOTALI
     df_pyr_totals = df_pyramid.groupby('grade')['count'].sum().reset_index()
-
-    # Aggiunge i totali a destra delle barre orizzontali
     fig_pyr.add_trace(go.Scatter(
         x=df_pyr_totals['count'], 
         y=df_pyr_totals['grade'],
@@ -270,9 +272,18 @@ if not df_rope_filt.empty:
         textposition='middle right',
         showlegend=False,
         hoverinfo='skip'
-    ))                 
-    fig_pyr.update_layout(barmode='stack', margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
-    fig_pyr.update_traces(textangle=0, selector=dict(type="bar"))
+    ))
+    
+    # 4. LAYOUT
+    fig_pyr.update_layout(
+        barmode='stack', 
+        margin=dict(l=0, r=0, t=40, b=0),
+        legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5)
+    )
+    
+    # 5. TESTO INTERNO (DRITTO E DENTRO LA BARRA)
+    fig_pyr.update_traces(textangle=0, textposition='inside', selector=dict(type="bar"))
+
     st.plotly_chart(fig_pyr, width='stretch')
 
     def group_grade(g):
