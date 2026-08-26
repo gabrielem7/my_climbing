@@ -186,7 +186,7 @@ fig_vol.add_trace(go.Scatter(
     showlegend=False,
     hoverinfo='skip'
 ))
-
+fig_vol.update_xaxes(categoryorder='category ascending')
 st.plotly_chart(fig_vol,  width='stretch')
 
 ########################################################################################################################
@@ -322,6 +322,7 @@ if not df_rope_filt.empty:
         hoverinfo='skip'
     ))
     fig_pyr_m.update_layout(margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
+    fig_pyr_m.update_xaxes(categoryorder='category ascending')
     st.plotly_chart(fig_pyr_m,  width='stretch')
 
     df_max = df_rope_filt.groupby([time_col])['grade_numeric'].max().reset_index()
@@ -331,9 +332,11 @@ if not df_rope_filt.empty:
                       category_orders={'max_grade': list_grades_rope})
     fig_max.update_layout(margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
     fig_max.update_yaxes(categoryorder='array', categoryarray=list_grades_rope)
+    fig_max.update_xaxes(categoryorder='category ascending')
     st.plotly_chart(fig_max,  width='stretch')
 
     df_max_stat = df_rope_filt.groupby([time_col, 'status'])['grade_numeric'].max().reset_index()
+    df_max_stat = df_max_stat.sort_values(by=time_col)
     df_max_stat['max_grade'] = df_max_stat['grade_numeric'].map(reverse_rope)
     fig_max_stat = px.line(df_max_stat, x=time_col, y='max_grade', color='status', markers=True, 
                            title="Max Grado nel Tempo per Status",
@@ -341,6 +344,7 @@ if not df_rope_filt.empty:
                            category_orders={'max_grade': list_grades_rope, 'status': list_status_order})
     fig_max_stat.update_layout(margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
     fig_max_stat.update_yaxes(categoryorder='array', categoryarray=list_grades_rope)
+    fig_max_stat.update_xaxes(categoryorder='category ascending')
     st.plotly_chart(fig_max_stat,  width='stretch')
     
     # 2.5 Tabella Migliori Tiri
@@ -441,6 +445,7 @@ if not df_boulder_filt.empty:
         showlegend=False,
         hoverinfo='skip'
     ))
+    fig_bp_m.update_xaxes(categoryorder='category ascending')
     st.plotly_chart(fig_bp_m,  width='stretch')
 
     # --- GRAFICO LINEE GRADO MASSIMO ---
@@ -455,7 +460,7 @@ if not df_boulder_filt.empty:
                           
     fig_bm_stat.update_layout(margin=dict(l=0, r=0, t=40, b=0), legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
     fig_bm_stat.update_yaxes(categoryorder='array', categoryarray=list_grades_boulder) 
-
+    fig_bm_stat.update_xaxes(categoryorder='category ascending')
     st.plotly_chart(fig_bm_stat,  width='stretch')  
 else:
     st.info("Nessun dato per i filtri selezionati.")
