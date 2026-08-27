@@ -283,7 +283,7 @@ if not df_rope_filt.empty:
     
     # 5. TESTO INTERNO (DRITTO E DENTRO LA BARRA)
     fig_pyr.update_traces(textangle=0, textposition='inside', selector=dict(type="bar"))
-
+    fig_pyr.update_yaxes(categoryorder='category ascending')
     st.plotly_chart(fig_pyr, width='stretch')
 
     def group_grade(g):
