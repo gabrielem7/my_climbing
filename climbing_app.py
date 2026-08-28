@@ -4,6 +4,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 st.set_page_config(page_title="Climbing Dashboard", layout="wide", page_icon="🧗‍♂️")
+
+
 st.markdown("## 🧗‍♂️ My Climbing Dashboard")
 
 # --- CARICAMENTO E PULIZIA DATI ---
@@ -129,13 +131,32 @@ media_time_col = round(giorni_totali / time_col_attivi, 1) if time_col_attivi > 
 completed_df = df_lines_ov['status'].isin(['on sight', 'flash', 'redpoint', 'on sight / flash'])
 completed_df_multipitch = df_lines_ov['status'].isin(['on sight', 'flash', 'redpoint', 'on sight / flash', 'clean'])
 
+
+tiri_corda = len(df_lines_ov[completed_df & df_lines_ov['climbing_type'].isin(['rock climbing', 'indoor climbing', 'trad climbing'])])
+blocchi = len(df_lines_ov[completed_df & df_lines_ov['climbing_type'].isin(['indoor boulder', 'rock boulder'])])
+multipitch = len(df_lines_ov[completed_df_multipitch & (df_lines_ov['climbing_type'] == 'multipitch')])
+
 # Render in colonne
-met_1, met_2, met_3, met_4, met_5= st.columns(5)
+st.markdown("""
+<style>
+    /* Rimpicciolisce la descrizione (es. "Giorni di Arrampicata") */
+    [data-testid="stMetricLabel"] p {
+        font-size: 0.75rem !important;
+    }
+    /* Rimpicciolisce il numero (es. "339") */
+    [data-testid="stMetricValue"] div {
+        font-size: 1.4rem !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+met_1, met_2, met_3 = st.columns(3, gap="xxsmall",wrap=False)
 met_1.metric("🗓️ Giorni di Arrampicata", giorni_totali)
-met_2.metric("🔄 Media Sessioni/Periodo selezionato nel filtro", f"{media_time_col}")
-met_3.metric("🪢 Tiri Corda", len(df_lines_ov[completed_df & df_lines_ov['climbing_type'].isin(['rock climbing', 'indoor climbing', 'trad climbing'])])) 
-met_4.metric("🧗‍♂️ Blocchi Boulder", len(df_lines_ov[completed_df & df_lines_ov['climbing_type'].isin(['indoor boulder', 'rock boulder'])])) 
-met_5.metric("🏔️ Vie Multipitch", len(df_lines_ov[completed_df_multipitch & (df_lines_ov['climbing_type'] == 'multipitch')]))
+met_2.metric(f"🔄 Sessioni/{selected_time_agg}", f"{media_time_col}")
+met_3.empty()
+met_4, met_5, met_6 = st.columns(3, gap="xxsmall",wrap=False)
+met_4.metric("🪢 Tiri Corda", tiri_corda) 
+met_5.metric("🧗‍♂️ Blocchi Boulder", blocchi) 
+met_6.metric("🏔️ Vie Multipitch", multipitch)
 st.markdown("<br>", unsafe_allow_html=True)
 
 # 1. Definisci l'ordine dal basso verso l'alto
@@ -242,11 +263,25 @@ if len(r_holds) > 0: df_rope_filt = df_rope_filt[df_rope_filt['holds_type'].appl
 
 if not df_rope_filt.empty:
    
-    met_c_1, met_c_2, met_c_3, met_c_4, met_c_5= st.columns(5)
-    met_c_1.metric("🧗‍♂️ Tiri Corda", len(df_rope_filt[df_rope_filt['climbing_type'].isin(['rock climbing', 'indoor climbing', 'trad climbing'])]))
-    met_c_2.metric("🔥 Max Grado Chiuso (Corda)", df_rope_filt[df_rope_filt['status'].isin(['redpoint', 'flash', 'on sight', 'on sight / flash'])]['grade'].max())
-    met_c_3.metric("👁️ Max a Vista/Flash (Corda)", df_rope_filt[df_rope_filt['status'].isin(['on sight', 'flash', 'on sight / flash'])]['grade'].max())
-     
+    met_c_1, met_c_2, met_c_3= st.columns(3, gap="xxsmall",wrap=False)
+    met_c_1.metric("🧗‍♂️ Tiri Corda", len(df_rope_filt))
+    met_c_2.metric("🔥 Max Grado Chiuso", df_rope_filt[df_rope_filt['status'].isin(['redpoint', 'flash', 'on sight', 'on sight / flash'])]['grade'].max())
+    met_c_3.metric("👁️ Max a Vista/Flash", df_rope_filt[df_rope_filt['status'].isin(['on sight', 'flash', 'on sight / flash'])]['grade'].max())
+
+
+
+    
+    luogo_piu_sessioni = df_rope_filt.groupby('description')['date'].nunique().idxmax()
+    n_sessioni = df_rope_filt.groupby('description')['date'].nunique().max()
+    
+    luogo_piu_tiri = df_rope_filt['description'].value_counts().idxmax()
+    n_tiri = df_rope_filt['description'].value_counts().max()
+
+    met_c_4, met_c_5, met_c_6= st.columns(3, gap="xxsmall",wrap=False)
+    met_c_4.metric("🏋️‍♂️ Luogo con più sessioni", f"{luogo_piu_sessioni} ({n_sessioni})")
+    met_c_5.metric("🪢 Luogo con più tiri", f"{luogo_piu_tiri} ({n_tiri})")
+    met_c_6.empty()
+
     st.markdown("<br>", unsafe_allow_html=True)
 
     df_pyramid = df_rope_filt.groupby(['grade', 'status']).size().reset_index(name='count')
@@ -420,11 +455,22 @@ if len(b_holds) > 0: df_boulder_filt = df_boulder_filt[df_boulder_filt['holds_ty
 
 if not df_boulder_filt.empty:
     completed_boulder = df_lines['status'].isin(['on sight', 'flash', 'redpoint', 'on sight / flash'])
-    met_b_1, met_b_2, met_b_3 = st.columns(3)
+    met_b_1, met_b_2, met_b_3 = st.columns(3, gap="xxsmall",wrap=False)
     met_b_1.metric("🧗‍♂️ Blocchi Boulder", len(df_lines[completed_boulder & df_lines['climbing_type'].isin(['indoor boulder', 'rock boulder'])]))
-    met_b_2.metric("🧱 Blocchi Boulder Indoor", len(df_lines[completed_boulder & df_lines['climbing_type'].isin(['indoor boulder'])]))
-    met_b_3.metric("🏔️ Blocchi Boulder Outdoor", len(df_lines[completed_boulder & df_lines['climbing_type'].isin(['rock boulder'])]))
+    met_b_2.metric("🧱 Blocchi Indoor", len(df_lines[completed_boulder & df_lines['climbing_type'].isin(['indoor boulder'])]))
+    met_b_3.metric("🏔️ Blocchi Outdoor", len(df_lines[completed_boulder & df_lines['climbing_type'].isin(['rock boulder'])]))
     st.markdown("<br>", unsafe_allow_html=True)
+
+    luogo_piu_sessioni_b = df_boulder_filt.groupby('description')['date'].nunique().idxmax()
+    n_sessioni_b = df_boulder_filt.groupby('description')['date'].nunique().max()
+
+    luogo_piu_blocchi = df_boulder_filt['description'].value_counts().idxmax()
+    n_blocchi = df_boulder_filt['description'].value_counts().max()
+
+    met_b_4, met_b_5, met_b_6= st.columns(3, gap="xxsmall",wrap=False)
+    met_b_4.metric("🏋️‍♂️ Luogo con più sessioni", f"{luogo_piu_sessioni_b} ({n_sessioni_b})")
+    met_b_5.metric("🧗‍♂️ Luogo con più blocchi", f"{luogo_piu_blocchi} ({n_blocchi})")
+    met_b_6.empty()
     # --- PIRAMIDE BLOCCHI NEL TEMPO ---
     df_bp_month = df_boulder_filt.groupby([time_col, 'grade']).size().reset_index(name='count')
     fig_bp_m = px.bar(df_bp_month, x=time_col, y='count', color='grade', title="Volume Blocchi nel Tempo",
@@ -478,10 +524,18 @@ if not df_multi.empty:
     # Nuovo Flag Completata (True se diverso da 'not finished')
     df_multi['is_finished'] = df_multi['status'].astype(str).str.lower() != 'not finished'
     
-    col_a, col_b = st.columns(2)
+    col_a, col_b = st.columns(2, gap="xxsmall",wrap=False)
     col_a.metric("Totale Vie Lunghe completate", df_multi['is_finished'].sum())
     col_b.metric("Di cui Trad/Integrare", df_multi[df_multi['is_finished']]['is_trad'].sum())
-    
+
+
+    socio_piu_vie_lunghe = df_multi['name'].value_counts().idxmax()
+    socio_numero_vie_lunghe = df_multi['name'].value_counts().max()
+    max_grade_vie_lunghe = df_multi[df_multi['is_finished']]['grade'].max()
+
+    col_c, col_d = st.columns(2, gap="xxsmall",wrap=False)
+    col_c.metric("Socio con più vie", f"{socio_piu_vie_lunghe} ({socio_numero_vie_lunghe})")
+    col_d.metric("Grado massimo in via", f"{max_grade_vie_lunghe}")
     # IMPORTANTE: Aggiunto 'name' e 'is_finished' all'estrazione per evitare errori
     df_multi_view = df_multi[['date', 'description', 'name', 'grade', 'comment', 'is_trad', 'is_finished']].sort_values('date', ascending=False)
     df_multi_view['date'] = df_multi_view['date'].dt.strftime('%d/%m/%Y')
