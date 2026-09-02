@@ -426,7 +426,67 @@ if not df_rope_filt.empty:
         st.info("Nessuna salita completata trovata con i filtri attuali.")
 else:
     st.info("Nessun dato per i filtri selezionati.")
+# ==========================================
+# INIZIO NUOVO BLOCCO BONUS: INDOOR VS OUTDOOR
+# ==========================================
+st.markdown("<br>", unsafe_allow_html=True)
+st.header("🌟 Bonus: Indoor vs Outdoor")
+with st.expander("🔍 Filtri Bonus"):
+    col_f1, col_f2 = st.columns(2)
+    
+    with col_f1:
+        # Filtro anni dedicato
+        min_y_bns = int(df_rope['year'].min())
+        max_y_bns = int(df_rope['year'].max())
+        bonus_years = st.slider("Filtra Anni", min_y_bns, max_y_bns, (min_y_bns, max_y_bns), key="slider_bonus")
+        
+    with col_f2:
+        # Filtro status separato
+        present_status_bonus = df_rope['status'].dropna().unique()
+        available_status_bonus = [s for s in list_status_order if s in present_status_bonus]
+        safe_defaults_bonus = [s for s in ['on sight', 'flash', 'redpoint', 'on sight / flash'] if s in available_status_bonus]
+        
+        bonus_status = st.multiselect("Status per confronto", available_status_bonus, default=safe_defaults_bonus, key="status_bonus")
 
+# Filtriamo il dataframe usando i nuovi filtri dedicati all'expander
+df_bonus = df_rope[
+    (df_rope['year'].between(bonus_years[0], bonus_years[1])) & 
+    (df_rope['climbing_type'].isin(['indoor climbing', 'rock climbing'])) &
+    (df_rope['status'].isin(bonus_status))
+].copy()
+
+if not df_bonus.empty:
+    col_g1, col_g2 = st.columns(2)
+    
+    # GRAFICO 1: Max Grado nel tempo
+    df_bonus_max = df_bonus.groupby([time_col, 'climbing_type'])['grade_numeric'].max().reset_index()
+    
+    reverse_rope_b = {v: k for k, v in grade_order_rope.items()}
+    df_bonus_max['max_grade'] = df_bonus_max['grade_numeric'].map(reverse_rope_b)
+    
+    fig_bonus_max = px.line(df_bonus_max, x=time_col, y='max_grade', color='climbing_type', markers=True,
+                            title="Andamento Max Grado",
+                            color_discrete_map={'indoor climbing': '#ff3333', 'rock climbing': '#0062cc'},
+                            category_orders={'max_grade': list_grades_rope})
+    fig_bonus_max.update_layout(margin=dict(l=0, r=0, t=40, b=0), legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5, title=""))
+    fig_bonus_max.update_yaxes(categoryorder='array', categoryarray=list_grades_rope)
+    fig_bonus_max.update_xaxes(categoryorder='category ascending')
+    
+    # GRAFICO 2: Volume (Numero di tiri) nel tempo
+    df_bonus_vol = df_bonus.groupby([time_col, 'climbing_type']).size().reset_index(name='count')
+    
+    fig_bonus_vol = px.bar(df_bonus_vol, x=time_col, y='count', color='climbing_type', barmode='group',
+                            title="Volume Tiri Completati",
+                            color_discrete_map={'indoor climbing': '#ff3333', 'rock climbing': '#0062cc'})
+    fig_bonus_vol.update_layout(margin=dict(l=0, r=0, t=40, b=0), legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5, title=""))
+    fig_bonus_vol.update_xaxes(categoryorder='category ascending')
+
+    with col_g1:
+        st.plotly_chart(fig_bonus_max, use_container_width=True)
+    with col_g2:
+        st.plotly_chart(fig_bonus_vol, use_container_width=True)
+else:
+    st.info("Nessun dato Indoor/Outdoor disponibile per questo incrocio di filtri.")
 ########################################################################################################################
 
 # --- SEZIONE 3: BOULDER ---
