@@ -102,8 +102,25 @@ years_ov = st.slider("Filtra Anni Overview", min_year_ov, max_year_ov, (min_year
 # Applica il filtro anni solo per l'overview
 df_lines_ov = df_lines[df_lines['year'].between(years_ov[0], years_ov[1])].copy()
 
-# 1. Estrai le colonne chiave, aggiungendo 'description' (Luogo)
+# 1. Estrai le colonne chiave PRIMA, lavorando su un dataframe dedicato alle sessioni
 df_daily = df_lines_ov[['session_id', 'date', time_col, 'climbing_type', 'description']].dropna(subset=['climbing_type']).drop_duplicates()
+
+# Funzione per sovrascrivere il climbing_type in base a other_session_info
+def update_climbing_type(row):
+    info = str(row.get('other_session_info', '')).strip().lower()
+    valid_types = ['rock climbing', 'indoor climbing', 'trad climbing', 'rock boulder', 'indoor boulder', 'multipitch']
+    
+    for ct in valid_types:
+        if info.startswith(ct):
+            return ct
+            
+    if info.startswith('boulder'):
+        return 'indoor boulder'
+        
+    return row['climbing_type']
+
+# Applica l'override SOLO a df_daily (così non corrompiamo i tiri in df_lines_ov!)
+df_daily['climbing_type'] = df_daily.apply(update_climbing_type, axis=1)
 
 # 2. Isoliamo le combinazioni esatte [Data + Luogo] dominanti
 idx_indoor_rope = df_daily[df_daily['climbing_type'] == 'indoor climbing'].set_index(['date', 'description']).index
@@ -151,12 +168,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 met_1, met_2, met_3 = st.columns(3, gap="xxsmall",wrap=False)
 met_1.metric("🗓️ Giorni di Arrampicata", giorni_totali)
-met_2.metric(f"🔄 Sessioni/{selected_time_agg}", f"{media_time_col}")
+met_2.metric(f"🔄 Sessioni/{selected_time_agg}", f"{media_time_col}",help="Media dei giorni di arrampicata per il periodo selezionato")
 met_3.empty()
 met_4, met_5, met_6 = st.columns(3, gap="xxsmall",wrap=False)
-met_4.metric("🪢 Tiri Corda", tiri_corda) 
-met_5.metric("🧗‍♂️ Blocchi Boulder", blocchi) 
-met_6.metric("🏔️ Vie Multipitch", multipitch)
+met_4.metric("🪢 Tiri Corda", tiri_corda, 
+             help="Tutti i singoli tiri di corda completati indipendentemente dallo stile (Lead, Top Rope, ecc.)") 
+met_5.metric("🧗‍♂️ Blocchi Boulder", blocchi,
+             help="Tutti i blocchi boulder completati con successo") 
+met_6.metric("🏔️ Vie Multipitch", multipitch,help="Vie a più tiri completate")
 st.markdown("<br>", unsafe_allow_html=True)
 
 # 1. Definisci l'ordine dal basso verso l'alto
@@ -264,7 +283,7 @@ if len(r_holds) > 0: df_rope_filt = df_rope_filt[df_rope_filt['holds_type'].appl
 if not df_rope_filt.empty:
    
     met_c_1, met_c_2, met_c_3= st.columns(3, gap="xxsmall",wrap=False)
-    met_c_1.metric("🧗‍♂️ Tiri Corda", len(df_rope_filt))
+    met_c_1.metric("🧗‍♂️ Tiri Corda", len(df_rope_filt), help="Numero di tiri in base ai filtri attuali")
     met_c_2.metric("🔥 Max Grado Chiuso", df_rope_filt[df_rope_filt['status'].isin(['redpoint', 'flash', 'on sight', 'on sight / flash'])]['grade'].max())
     met_c_3.metric("👁️ Max a Vista/Flash", df_rope_filt[df_rope_filt['status'].isin(['on sight', 'flash', 'on sight / flash'])]['grade'].max())
 
