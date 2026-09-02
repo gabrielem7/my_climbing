@@ -9,7 +9,7 @@ st.set_page_config(page_title="Climbing Dashboard", layout="wide", page_icon="�
 st.markdown("## 🧗‍♂️ My Climbing Dashboard")
 
 # --- CARICAMENTO E PULIZIA DATI ---
-SHEET_ID = "1aeCcRAt7baHVt3P75YTq_rSxSKOzwbjuCLpAcgIyc3Q"
+SHEET_ID = st.secrets["SHEET_ID"]
 URL_LINES = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=831695350"
 URL_SESSIONS = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=1617924867"
 
