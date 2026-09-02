@@ -173,7 +173,7 @@ met_3.empty()
 met_4, met_5, met_6 = st.columns(3, gap="xxsmall",wrap=False)
 met_4.metric("🪢 Tiri Corda", tiri_corda, 
              help="Tutti i singoli tiri di corda completati indipendentemente dallo stile (Lead, Top Rope, ecc.)") 
-met_5.metric("🧗‍♂️ Blocchi Boulder", blocchi,
+met_5.metric("🪨 Blocchi Boulder", blocchi,
              help="Tutti i blocchi boulder completati con successo") 
 met_6.metric("🏔️ Vie Multipitch", multipitch,help="Vie a più tiri completate")
 st.markdown("<br>", unsafe_allow_html=True)
@@ -250,9 +250,6 @@ with st.expander("🔍 Filtri Corda"):
         r_types = st.multiselect("Ambiente", available_types, default=available_types)
         
     with col2:
-        available_places = sorted(df_rope['description'].dropna().unique())
-        r_places = st.multiselect("Luogo", available_places)
-        
         present_status = df_rope['status'].dropna().unique()
         available_status = [s for s in list_status_order if s in present_status]
         safe_defaults_status = [s for s in ['on sight', 'flash', 'redpoint', 'on sight / flash'] if s in available_status]
@@ -260,6 +257,9 @@ with st.expander("🔍 Filtri Corda"):
         
         available_styles = df_rope['climbing_style'].dropna().unique()
         r_style = st.multiselect("Stile", available_styles, default=["lead"] if "lead" in available_styles else None)
+        
+        available_places = sorted(df_rope['description'].dropna().unique())
+        r_places = st.multiselect("Luogo", available_places)
 
     all_holds = df_rope['holds_type'].dropna().astype(str).str.split(',').explode().str.strip()
     available_holds = sorted([h for h in all_holds.unique() if h])
@@ -281,25 +281,38 @@ if len(r_style) > 0: df_rope_filt = df_rope_filt[df_rope_filt['climbing_style'].
 if len(r_holds) > 0: df_rope_filt = df_rope_filt[df_rope_filt['holds_type'].apply(lambda x: check_holds(x, r_holds))]
 
 if not df_rope_filt.empty:
-   
-    met_c_1, met_c_2, met_c_3= st.columns(3, gap="xxsmall",wrap=False)
-    met_c_1.metric("🧗‍♂️ Tiri Corda", len(df_rope_filt), help="Numero di tiri in base ai filtri attuali")
-    met_c_2.metric("🔥 Max Grado Chiuso", df_rope_filt[df_rope_filt['status'].isin(['redpoint', 'flash', 'on sight', 'on sight / flash'])]['grade'].max())
-    met_c_3.metric("👁️ Max a Vista/Flash", df_rope_filt[df_rope_filt['status'].isin(['on sight', 'flash', 'on sight / flash'])]['grade'].max())
-
-
-
-    
     luogo_piu_sessioni = df_rope_filt.groupby('description')['date'].nunique().idxmax()
     n_sessioni = df_rope_filt.groupby('description')['date'].nunique().max()
     
     luogo_piu_tiri = df_rope_filt['description'].value_counts().idxmax()
     n_tiri = df_rope_filt['description'].value_counts().max()
+   
+    met_c_1, met_c_2, met_c_3= st.columns(3, gap="xxsmall",wrap=False)
+    met_c_1.metric("🧗‍♂️ Tiri Corda", len(df_rope_filt), help="Numero di tiri in base ai filtri attuali")
+    met_c_2.metric("🏋️‍♂️ Luogo con più sessioni", f"{luogo_piu_sessioni} ({n_sessioni})")
+    met_c_3.metric("🪢 Luogo con più tiri", f"{luogo_piu_tiri} ({n_tiri})")
+
+
+
+    
 
     met_c_4, met_c_5, met_c_6= st.columns(3, gap="xxsmall",wrap=False)
-    met_c_4.metric("🏋️‍♂️ Luogo con più sessioni", f"{luogo_piu_sessioni} ({n_sessioni})")
-    met_c_5.metric("🪢 Luogo con più tiri", f"{luogo_piu_tiri} ({n_tiri})")
-    met_c_6.empty()
+    met_c_4.metric("🔥 Max Grado Redpoint", df_rope_filt[df_rope_filt['status'].isin(['redpoint'])]['grade'].max())
+    if merge_flash_os:
+        met_c_5.metric("💥 Max a Vista/Flash", df_rope_filt[df_rope_filt['status'].isin(['on sight', 'flash', 'on sight / flash'])]['grade'].max())
+        met_c_6.empty()
+    else:
+        met_c_5.metric("⚡ Max Flash", df_rope_filt[df_rope_filt['status'].isin(['flash'])]['grade'].max())
+        met_c_6.metric("👁️ Max a Vista", df_rope_filt[df_rope_filt['status'].isin(['on sight'])]['grade'].max())
+    
+    met_c_7, met_c_8, met_c_9= st.columns(3, gap="xxsmall",wrap=False)
+    met_c_7.metric("🔥 Tiri Redpoint", len(df_rope_filt[df_rope_filt['status'].isin(['redpoint'])]))
+    if merge_flash_os:
+        met_c_8.metric("💥Tiri a Vista/Flash", len(df_rope_filt[df_rope_filt['status'].isin(['on sight', 'flash', 'on sight / flash'])]))
+        met_c_9.empty()
+    else:
+        met_c_8.metric("⚡ Tiri Flash", len(df_rope_filt[df_rope_filt['status'].isin(['flash'])]))
+        met_c_9.metric("👁️ Tiri a Vista", len(df_rope_filt[df_rope_filt['status'].isin(['on sight'])]))    
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -439,24 +452,35 @@ with st.expander("🔍 Filtri Bonus"):
         min_y_bns = int(df_rope['year'].min())
         max_y_bns = int(df_rope['year'].max())
         bonus_years = st.slider("Filtra Anni", min_y_bns, max_y_bns, (min_y_bns, max_y_bns), key="slider_bonus")
+       
+        available_grades_bonus = sorted(df_rope['grade'].dropna().unique())
+        bonus_grades = st.multiselect("Gradi", available_grades_bonus, help="Lascia vuoto per tutti", key="grades_bonus")
         
+
     with col_f2:
         # Filtro status separato
         present_status_bonus = df_rope['status'].dropna().unique()
         available_status_bonus = [s for s in list_status_order if s in present_status_bonus]
         safe_defaults_bonus = [s for s in ['on sight', 'flash', 'redpoint', 'on sight / flash'] if s in available_status_bonus]
-        
-        bonus_status = st.multiselect("Status per confronto", available_status_bonus, default=safe_defaults_bonus, key="status_bonus")
+        bonus_status = st.multiselect("Status per confronto", available_status_bonus, default=safe_defaults_bonus)
 
-# Filtriamo il dataframe usando i nuovi filtri dedicati all'expander
-df_bonus = df_rope[
-    (df_rope['year'].between(bonus_years[0], bonus_years[1])) & 
-    (df_rope['climbing_type'].isin(['indoor climbing', 'rock climbing'])) &
-    (df_rope['status'].isin(bonus_status))
-].copy()
+        available_styles_bonus = df_rope['climbing_style'].dropna().unique()
+        bonus_style = st.multiselect("Stile per confronto", available_styles_bonus, default=["lead"] if "lead" in available_styles_bonus else None)
+
+df_bonus = df_rope[df_rope['year'].between(bonus_years[0], bonus_years[1])&
+(df_rope['climbing_type'].isin(['indoor climbing', 'rock climbing']))].copy()
+
+if len(bonus_grades) > 0: df_bonus = df_bonus[df_bonus['grade'].isin(bonus_grades)]
+if len(bonus_status) > 0: df_bonus = df_bonus[df_bonus['status'].isin(bonus_status)]
+if len(bonus_style) > 0: df_bonus = df_bonus[df_bonus['climbing_style'].isin(bonus_style)]
 
 if not df_bonus.empty:
-    
+    met_vs_1, met_vs_2= st.columns(2, gap="xxsmall",wrap=False)
+    met_vs_1.metric("🪢 Tiri Indoor", len(df_bonus[df_bonus['climbing_type'].isin(['indoor climbing'])]))
+    met_vs_2.metric("🏔️ Tiri Outdoor", len(df_bonus[df_bonus['climbing_type'].isin(['rock climbing'])]))
+    met_vs_3, met_vs_4 = st.columns(2, gap="xxsmall",wrap=False)
+    met_vs_3.metric("🔥 Max Indoor", df_bonus[df_bonus['climbing_type'].isin(['indoor climbing'])]['grade'].max())
+    met_vs_4.metric("💥 Max Outdoor", df_bonus[df_bonus['climbing_type'].isin(['rock climbing'])]['grade'].max())
     # GRAFICO 1: Max Grado nel tempo
     df_bonus_max = df_bonus.groupby([time_col, 'climbing_type'])['grade_numeric'].max().reset_index()
     
@@ -480,6 +504,55 @@ if not df_bonus.empty:
     fig_bonus_vol.update_layout(margin=dict(l=0, r=0, t=40, b=0), legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5, title=""))
     fig_bonus_vol.update_xaxes(categoryorder='category ascending')
     st.plotly_chart(fig_bonus_vol, use_container_width=True)
+    # GRAFICO 3: Piramide della distribuzione dei gradi (Indoor a SX vs Outdoor a DX)
+    # 1. Raggruppa i dati per grado e tipo di arrampicata
+    df_pyramid = df_bonus.groupby(['grade', 'climbing_type']).size().reset_index(name='count')
+    
+    # 2. Scambio posizioni: Indoor a sinistra (negativo), Outdoor a destra (positivo)
+    df_pyramid['count_plot'] = df_pyramid.apply(
+        lambda row: -row['count'] if row['climbing_type'] == 'indoor climbing' else row['count'], 
+        axis=1
+    )
+    
+    # 3. Forza il valore assoluto nei testi delle barre
+    df_pyramid['text_label'] = df_pyramid['count'].astype(str)
+    
+    # 4. Crea il grafico a barre orizzontali
+    fig_pyramid = px.bar(
+        df_pyramid, 
+        y='grade', 
+        x='count_plot', 
+        color='climbing_type',
+        orientation='h',
+        text='text_label',
+        title="Piramide Distribuzione Gradi (Indoor vs Outdoor)",
+        color_discrete_map={'indoor climbing': '#ff3333', 'rock climbing': '#0062cc'},
+        category_orders={'grade': list_grades_rope} 
+    )
+    
+    # 5. Configura il layout e inverte l'ordine dei gradi sull'asse Y
+    fig_pyramid.update_layout(
+        margin=dict(l=0, r=0, t=40, b=0),
+        legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5, title=""),
+        barmode='overlay',
+        bargap=0.1
+    )
+    
+        # Modifica i tick dell'asse X per mostrare valori positivi e centra lo zero
+    fig_pyramid.update_xaxes(
+        tickmode='array',
+        tickvals=[-50, -20, -10, 0, 10, 20, 50],
+        ticktext=['50', '20', '10', '0', '10', '20', '50'],
+        title="Numero di Tiri",
+        range=[-max(abs(df_pyramid['count'].min()), df_pyramid['count'].max())-2, max(abs(df_pyramid['count'].min()), df_pyramid['count'].max())+2]
+    )
+    
+    # Inverte l'asse Y (autorange="reversed") per scambiare l'ordine dei gradi (es. duri in basso, facili in alto)
+    fig_pyramid.update_yaxes(title="Grado", autorange="reversed")
+    fig_pyramid.update_traces(textposition='outside')
+    
+    st.plotly_chart(fig_pyramid, use_container_width=True)
+
 
 else:
     st.info("Nessun dato Indoor/Outdoor disponibile per questo incrocio di filtri.")
@@ -487,7 +560,7 @@ else:
 
 # --- SEZIONE 3: BOULDER ---
 st.markdown("---")
-st.header("🧗‍♂️ Boulder")
+st.header("🪨 Boulder")
 
 df_boulder = df_lines[df_lines['climbing_type'].isin(['indoor boulder', 'rock boulder'])].copy()
 df_boulder = df_boulder[df_boulder['grade'].isin(list_grades_boulder)]
@@ -531,7 +604,7 @@ if len(b_holds) > 0: df_boulder_filt = df_boulder_filt[df_boulder_filt['holds_ty
 if not df_boulder_filt.empty:
     completed_boulder = df_lines['status'].isin(['on sight', 'flash', 'redpoint', 'on sight / flash'])
     met_b_1, met_b_2, met_b_3 = st.columns(3, gap="xxsmall",wrap=False)
-    met_b_1.metric("🧗‍♂️ Blocchi Boulder", len(df_lines[completed_boulder & df_lines['climbing_type'].isin(['indoor boulder', 'rock boulder'])]))
+    met_b_1.metric("🪨 Blocchi Boulder", len(df_lines[completed_boulder & df_lines['climbing_type'].isin(['indoor boulder', 'rock boulder'])]))
     met_b_2.metric("🧱 Blocchi Indoor", len(df_lines[completed_boulder & df_lines['climbing_type'].isin(['indoor boulder'])]))
     met_b_3.metric("🏔️ Blocchi Outdoor", len(df_lines[completed_boulder & df_lines['climbing_type'].isin(['rock boulder'])]))
     st.markdown("<br>", unsafe_allow_html=True)
@@ -544,7 +617,7 @@ if not df_boulder_filt.empty:
 
     met_b_4, met_b_5, met_b_6= st.columns(3, gap="xxsmall",wrap=False)
     met_b_4.metric("🏋️‍♂️ Luogo con più sessioni", f"{luogo_piu_sessioni_b} ({n_sessioni_b})")
-    met_b_5.metric("🧗‍♂️ Luogo con più blocchi", f"{luogo_piu_blocchi} ({n_blocchi})")
+    met_b_5.metric("⛰️ Luogo con più blocchi", f"{luogo_piu_blocchi} ({n_blocchi})")
     met_b_6.empty()
     # --- PIRAMIDE BLOCCHI NEL TEMPO ---
     df_bp_month = df_boulder_filt.groupby([time_col, 'grade']).size().reset_index(name='count')
@@ -600,8 +673,8 @@ if not df_multi.empty:
     df_multi['is_finished'] = df_multi['status'].astype(str).str.lower() != 'not finished'
     
     col_a, col_b = st.columns(2, gap="xxsmall",wrap=False)
-    col_a.metric("Totale Vie Lunghe completate", df_multi['is_finished'].sum())
-    col_b.metric("Di cui Trad/Integrare", df_multi[df_multi['is_finished']]['is_trad'].sum())
+    col_a.metric("⛰️ Totale Vie Lunghe completate", df_multi['is_finished'].sum())
+    col_b.metric("⚒️ Di cui Trad/Integrare", df_multi[df_multi['is_finished']]['is_trad'].sum())
 
 
     socio_piu_vie_lunghe = df_multi['name'].value_counts().idxmax()
@@ -609,8 +682,8 @@ if not df_multi.empty:
     max_grade_vie_lunghe = df_multi[df_multi['is_finished']]['grade'].max()
 
     col_c, col_d = st.columns(2, gap="xxsmall",wrap=False)
-    col_c.metric("Socio con più vie", f"{socio_piu_vie_lunghe} ({socio_numero_vie_lunghe})")
-    col_d.metric("Grado massimo in via", f"{max_grade_vie_lunghe}")
+    col_c.metric("👨‍❤️‍💋‍👨 Socio con più vie", f"{socio_piu_vie_lunghe} ({socio_numero_vie_lunghe})")
+    col_d.metric("🔥 Grado massimo in via", f"{max_grade_vie_lunghe}")
     # IMPORTANTE: Aggiunto 'name' e 'is_finished' all'estrazione per evitare errori
     df_multi_view = df_multi[['date', 'description', 'name', 'grade', 'comment', 'is_trad', 'is_finished']].sort_values('date', ascending=False)
     df_multi_view['date'] = df_multi_view['date'].dt.strftime('%d/%m/%Y')
