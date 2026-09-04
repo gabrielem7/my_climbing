@@ -103,7 +103,7 @@ years_ov = st.slider("Filtra Anni Overview", min_year_ov, max_year_ov, (min_year
 df_lines_ov = df_lines[df_lines['year'].between(years_ov[0], years_ov[1])].copy()
 
 # 1. Estrai le colonne chiave PRIMA, lavorando su un dataframe dedicato alle sessioni
-df_daily = df_lines_ov[['session_id', 'date', time_col, 'climbing_type', 'description']].dropna(subset=['climbing_type']).drop_duplicates()
+df_daily = df_lines_ov[['session_id', 'date', time_col, 'climbing_type', 'description', 'other_session_info']].dropna(subset=['climbing_type']).drop_duplicates()
 
 # Funzione per sovrascrivere il climbing_type in base a other_session_info
 def update_climbing_type(row):
