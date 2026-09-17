@@ -424,14 +424,14 @@ if not df_rope_filt.empty:
         df_best = df_rope_filt.sort_values(by=['grade_numeric', 'date'], ascending=[False, False])
         
         # Prendiamo i top 20 e le colonne più rilevanti
-        df_best_view = df_best[['date', 'description', 'name', 'grade', 'status', 'climbing_style','holds_type', 'comment']].head(20).copy()
+        df_best_view = df_best[['date', 'description', 'name', 'grade', 'status', 'attempt', 'climbing_style','holds_type', 'comment']].head(50).copy()
         df_best_view['date'] = df_best_view['date'].dt.strftime('%d/%m/%Y')
         
         # Rinominiamo per estetica
         df_best_view = df_best_view.rename(columns={
             'date': 'Data', 'description': 'Luogo', 'name': 'Via', 
-            'grade': 'Grado', 'status': 'Status', 'climbing_style': 'Stile',
-            'holds_type': 'Prese', 'comment': 'Note'
+            'grade': 'Grado', 'status': 'Status', 'attempt': 'Tentativo', 'climbing_style': 'Tipo',
+            'holds_type': 'Stile', 'comment': 'Note'
         })
         
         st.dataframe(df_best_view,  width='stretch', hide_index=True)
