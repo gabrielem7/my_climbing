@@ -55,7 +55,14 @@ color_map_status = {
     'flash': '#2ca02c',    
     'redpoint': '#d62728', 
     'red point': '#d62728',
-    'on sight / flash': '#17becf'
+    'on sight / flash': '#17becf',
+    'clean': '#ff914d',
+    '1p': '#ffde59',
+    '2p': '#9e6f42',
+    '3p': '#543212',
+    '3p+': '#7a7a7a',
+    'not finished': '#000000',
+    'projecting': '#38b6ff'
 }
 # --- ORDINE STATUS ---
 list_status_order = [
@@ -73,6 +80,48 @@ list_status_order = [
 ]
 # Dizionario numerico per ordinare i dataframe
 status_order_map = {s: i for i, s in enumerate(list_status_order)}
+
+# --- REGOLE GRADI RAGGRUPPATI E COLORI PROGRESSIVI ---
+def group_grade(g):
+    g = str(g)
+    if g.startswith(('3', '4')): return g[0]
+    elif g.startswith('5'): return g[:2]
+    else: return g
+
+list_grades_grouped = ['3', '4', '5a', '5b', '5c'] + [f"{n}{l}" for n in range(6, 9) for l in ["a", "a+", "b", "b+", "c", "c+"]]
+grade_grouped_order = {grade: i for i, grade in enumerate(list_grades_grouped)}
+
+# Mappa colori personalizzata: tonalità fissa per il grado, variante scuro->chiaro per i '+'
+color_map_grades = {
+    '3': '#f7a1a1',     # Rosa chiaro
+    '4': '#f75e5e',     # Rosa scuro
+    
+    '5a': '#38b6ff',      # Azzurro
+    '5b': '#197dc2',      # Blu 
+    '5c': '#004aad',     # Blu scuro
+    
+    '6a':  '#6dc871',    # Verde chiaro
+    '6a+':  '#2ca02c',    # Verde medio 
+    '6b':  '#fff759',    # Giallo chiaro
+    '6b+': '#f5d247',     # Giallo scuro
+    '6c':  '#ff914d',    # Arancione chiaro
+    '6c+': '#db6204',     # Arancione scuro
+    
+    '7a':  '#ff0507',    # Rosso vivo
+    '7a+': '#cc0606',     # Rosso scuro
+    '7b':  '#ff57d9',    # Fucsia chiaro
+    '7b+': '#9c0d7b',     # Fucsia scuro
+    '7c':  '#9c51ff',    # Viola chiaro
+    '7c+': '#4d0099',     # Viola scuro
+    
+    # Gradi estremi (Aggiunti per completare la scala fino all'8c+)
+    '8a':  '#9e6f42',    # Marrone chiaro
+    '8a+': '#543212',     # Marrone scuro
+    '8b':  '#23a89e',    # Ottanio chiaro
+    '8b+': '#035a53',     # Ottanio scuro (Verde-bluastro)
+    '8c':  '#7a7a7a',     # Grigio
+    '8c+': '#000000',     # Nero
+}
 
 ########################################################################################################################
 
@@ -234,7 +283,12 @@ st.plotly_chart(fig_vol,  width='stretch')
 # --- SEZIONE 2: CORDA ---
 st.header("🪢 Arrampicata su Corda")
 df_rope = df_lines[df_lines['climbing_type'].isin(['rock climbing', 'indoor climbing','trad climbing'])].copy()
+
+# Mantiene grade_numeric intatto per l'ordinamento preciso di tabelle e metriche
 df_rope['grade_numeric'] = df_rope['grade'].map(grade_order_rope)
+# Nuove colonne raggruppate per i grafici
+df_rope['grade_grouped'] = df_rope['grade'].apply(group_grade)
+df_rope['grade_grouped_numeric'] = df_rope['grade_grouped'].map(grade_grouped_order)
 
 with st.expander("🔍 Filtri Corda"):
     col1, col2 = st.columns(2)
@@ -315,25 +369,22 @@ if not df_rope_filt.empty:
         met_c_9.metric("👁️ Tiri a Vista", len(df_rope_filt[df_rope_filt['status'].isin(['on sight'])]))    
 
     st.markdown("<br>", unsafe_allow_html=True)
-
-    df_pyramid = df_rope_filt.groupby(['grade', 'status']).size().reset_index(name='count')
-    df_pyramid['numeric'] = df_pyramid['grade'].map(grade_order_rope)
+    
+    df_pyramid = df_rope_filt.groupby(['grade_grouped', 'status']).size().reset_index(name='count')
+    df_pyramid['numeric'] = df_pyramid['grade_grouped'].map(grade_grouped_order)
     df_pyramid = df_pyramid.sort_values('numeric', ascending=True)
     
-    # 1. CREIAMO LA COLONNA PRIMA DEL GRAFICO
     df_pyramid['text_label'] = df_pyramid['count'].apply(lambda x: str(x) if x > 2 else "")
     
-    # 2. CREIAMO IL GRAFICO PASSANDO LA NUOVA COLONNA
-    fig_pyr = px.bar(df_pyramid, x='count', y='grade', color='status', orientation='h', 
+    fig_pyr = px.bar(df_pyramid, x='count', y='grade_grouped', color='status', orientation='h', 
                      title="Piramide dei Gradi Globale", text='text_label',
                      color_discrete_map=color_map_status,
-                     category_orders={'status': list_status_order})
+                     category_orders={'status': list_status_order, 'grade_grouped': list_grades_grouped})
                      
-    # 3. AGGIUNGIAMO I TOTALI
-    df_pyr_totals = df_pyramid.groupby('grade')['count'].sum().reset_index()
+    df_pyr_totals = df_pyramid.groupby('grade_grouped')['count'].sum().reset_index()
     fig_pyr.add_trace(go.Scatter(
         x=df_pyr_totals['count'], 
-        y=df_pyr_totals['grade'],
+        y=df_pyr_totals['grade_grouped'],
         text=df_pyr_totals['count'], 
         mode='text',
         textposition='middle right',
@@ -353,32 +404,19 @@ if not df_rope_filt.empty:
     fig_pyr.update_yaxes(categoryorder='category ascending')
     st.plotly_chart(fig_pyr, width='stretch')
 
-    def group_grade(g):
-        g = str(g)
-        if g.startswith(('3', '4', '5')):
-            return g[0] # Ritorna solo '3', '4' o '5'
-        elif len(g) >= 2:
-            return g[:2] # Ritorna '6a', '6b', ecc., tagliando via il '+'
-        return g
-
     # Creiamo un dataframe temporaneo assegnando la nuova colonna per non intaccare gli altri grafici
     df_temp_pyr = df_rope_filt.assign(grade_grouped=df_rope_filt['grade'].apply(group_grade))
     
-    # Raggruppiamo per time_col e per il nuovo grado raggruppato
-    df_pyr_month = df_temp_pyr.groupby([time_col, 'grade_grouped']).size().reset_index(name='count')
+    # Raggruppiamo per time_col usando direttamente il grado raggruppato calcolato in df_rope
+    df_pyr_month = df_rope_filt.groupby([time_col, 'grade_grouped']).size().reset_index(name='count')
     
-    # Creiamo l'ordine corretto per le categorie raggruppate
-    grouped_order = ['3', '4', '5', '6a', '6b', '6c', '7a', '7b', '7c', '8a', '8b', '8c']
-    
-    # Creiamo il grafico
     fig_pyr_m = px.bar(df_pyr_month, x=time_col, y='count', color='grade_grouped', 
                        title="Volume Gradi nel Tempo",
-                       category_orders={'grade_grouped': grouped_order},
-                       labels={'grade_grouped': 'Grado'})
-    # Calcola i totali per mese
+                       labels={'grade_grouped': 'Grado'},
+                       color_discrete_map=color_map_grades, # <-- APPLICA LA SCALA COLORI PROGRESSIVA
+                       category_orders={'grade_grouped': list_grades_grouped})
+                       
     df_pyr_m_totals = df_pyr_month.groupby(time_col)['count'].sum().reset_index()
-
-    # Aggiunge i totali in cima alle colonne
     fig_pyr_m.add_trace(go.Scatter(
         x=df_pyr_m_totals[time_col], 
         y=df_pyr_m_totals['count'],
@@ -392,25 +430,28 @@ if not df_rope_filt.empty:
     fig_pyr_m.update_xaxes(categoryorder='category ascending')
     st.plotly_chart(fig_pyr_m,  width='stretch')
 
-    df_max = df_rope_filt.groupby([time_col])['grade_numeric'].max().reset_index()
-    reverse_rope = {v: k for k, v in grade_order_rope.items()}
-    df_max['max_grade'] = df_max['grade_numeric'].map(reverse_rope)
+
+    df_max = df_rope_filt.groupby([time_col])['grade_grouped_numeric'].max().reset_index()
+    reverse_rope_grouped = {v: k for k, v in grade_grouped_order.items()}
+    df_max['max_grade'] = df_max['grade_grouped_numeric'].map(reverse_rope_grouped)
+    
     fig_max = px.line(df_max, x=time_col, y='max_grade', markers=True, title="Grado Massimo nel Tempo",
-                      category_orders={'max_grade': list_grades_rope})
+                      category_orders={'max_grade': list_grades_grouped})
     fig_max.update_layout(margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
-    fig_max.update_yaxes(categoryorder='array', categoryarray=list_grades_rope)
+    fig_max.update_yaxes(categoryorder='array', categoryarray=list_grades_grouped)
     fig_max.update_xaxes(categoryorder='category ascending')
     st.plotly_chart(fig_max,  width='stretch')
 
-    df_max_stat = df_rope_filt.groupby([time_col, 'status'])['grade_numeric'].max().reset_index()
+    df_max_stat = df_rope_filt.groupby([time_col, 'status'])['grade_grouped_numeric'].max().reset_index()
     df_max_stat = df_max_stat.sort_values(by=time_col)
-    df_max_stat['max_grade'] = df_max_stat['grade_numeric'].map(reverse_rope)
+    df_max_stat['max_grade'] = df_max_stat['grade_grouped_numeric'].map(reverse_rope_grouped)
+    
     fig_max_stat = px.line(df_max_stat, x=time_col, y='max_grade', color='status', markers=True, 
                            title="Max Grado nel Tempo per Status",
                            color_discrete_map=color_map_status,
-                           category_orders={'max_grade': list_grades_rope, 'status': list_status_order})
+                           category_orders={'max_grade': list_grades_grouped, 'status': list_status_order})
     fig_max_stat.update_layout(margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
-    fig_max_stat.update_yaxes(categoryorder='array', categoryarray=list_grades_rope)
+    fig_max_stat.update_yaxes(categoryorder='array', categoryarray=list_grades_grouped)
     fig_max_stat.update_xaxes(categoryorder='category ascending')
     st.plotly_chart(fig_max_stat,  width='stretch')
     
@@ -482,18 +523,16 @@ if not df_bonus.empty:
     met_vs_3.metric("🔥 Max Indoor", df_bonus[df_bonus['climbing_type'].isin(['indoor climbing'])]['grade'].max())
     met_vs_4.metric("💥 Max Outdoor", df_bonus[df_bonus['climbing_type'].isin(['rock climbing'])]['grade'].max())
     # GRAFICO 1: Max Grado nel tempo
-    df_bonus_max = df_bonus.groupby([time_col, 'climbing_type'])['grade_numeric'].max().reset_index()
-    
-    reverse_rope_b = {v: k for k, v in grade_order_rope.items()}
-    df_bonus_max['max_grade'] = df_bonus_max['grade_numeric'].map(reverse_rope_b)
+    df_bonus_max = df_bonus.groupby([time_col, 'climbing_type'])['grade_grouped_numeric'].max().reset_index()
+    reverse_rope_b = {v: k for k, v in grade_grouped_order.items()}
+    df_bonus_max['max_grade'] = df_bonus_max['grade_grouped_numeric'].map(reverse_rope_b)
     
     fig_bonus_max = px.line(df_bonus_max, x=time_col, y='max_grade', color='climbing_type', markers=True,
                             title="Andamento Max Grado",
                             color_discrete_map={'indoor climbing': '#ff3333', 'rock climbing': '#0062cc'},
-                            category_orders={'max_grade': list_grades_rope})
+                            category_orders={'max_grade': list_grades_grouped})
     fig_bonus_max.update_layout(margin=dict(l=0, r=0, t=40, b=0), legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5, title=""))
-    fig_bonus_max.update_yaxes(categoryorder='array', categoryarray=list_grades_rope)
-    fig_bonus_max.update_xaxes(categoryorder='category ascending')
+    fig_bonus_max.update_yaxes(categoryorder='array', categoryarray=list_grades_grouped)
     st.plotly_chart(fig_bonus_max, use_container_width=True)
     # GRAFICO 2: Volume (Numero di tiri) nel tempo
     df_bonus_vol = df_bonus.groupby([time_col, 'climbing_type']).size().reset_index(name='count')
@@ -505,29 +544,29 @@ if not df_bonus.empty:
     fig_bonus_vol.update_xaxes(categoryorder='category ascending')
     st.plotly_chart(fig_bonus_vol, use_container_width=True)
     # GRAFICO 3: Piramide della distribuzione dei gradi (Indoor a SX vs Outdoor a DX)
-    # 1. Raggruppa i dati per grado e tipo di arrampicata
-    df_pyramid = df_bonus.groupby(['grade', 'climbing_type']).size().reset_index(name='count')
+    # 1. Raggruppa i dati per grado raggruppato e tipo di arrampicata
+    df_pyramid = df_bonus.groupby(['grade_grouped', 'climbing_type']).size().reset_index(name='count')
     
-    # 2. Scambio posizioni: Indoor a sinistra (negativo), Outdoor a destra (positivo)
+    # 2. Scambio posizioni
     df_pyramid['count_plot'] = df_pyramid.apply(
         lambda row: -row['count'] if row['climbing_type'] == 'indoor climbing' else row['count'], 
         axis=1
     )
     
-    # 3. Forza il valore assoluto nei testi delle barre
+    # 3. Forza il valore assoluto
     df_pyramid['text_label'] = df_pyramid['count'].astype(str)
     
-    # 4. Crea il grafico a barre orizzontali
+    # 4. Crea il grafico a barre
     fig_pyramid = px.bar(
         df_pyramid, 
-        y='grade', 
+        y='grade_grouped', 
         x='count_plot', 
         color='climbing_type',
         orientation='h',
         text='text_label',
         title="Piramide Distribuzione Gradi (Indoor vs Outdoor)",
         color_discrete_map={'indoor climbing': '#ff3333', 'rock climbing': '#0062cc'},
-        category_orders={'grade': list_grades_rope} 
+        category_orders={'grade_grouped': list_grades_grouped} 
     )
     
     # 5. Configura il layout e inverte l'ordine dei gradi sull'asse Y
