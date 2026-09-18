@@ -558,6 +558,9 @@ if not df_bonus.empty:
     # 1. Raggruppa i dati per grado raggruppato e tipo di arrampicata
     df_pyramid = df_bonus.groupby(['grade_grouped', 'climbing_type']).size().reset_index(name='count')
     
+    total_by_type = df_pyramid.groupby('climbing_type')['count'].transform('sum')
+    df_pyramid['percentage'] = (df_pyramid['count'] / total_by_type) * 100
+    
     # 2. Scambio posizioni
     df_pyramid['count_plot'] = df_pyramid.apply(
         lambda row: -row['count'] if row['climbing_type'] == 'indoor climbing' else row['count'], 
@@ -565,7 +568,10 @@ if not df_bonus.empty:
     )
     
     # 3. Forza il valore assoluto
-    df_pyramid['text_label'] = df_pyramid['count'].astype(str)
+    df_pyramid['text_label'] = df_pyramid.apply(
+        lambda row: f"<b>{row['count']}</b> ({row['percentage']:.1f}%)", 
+        axis=1
+    )
     
     # 4. Crea il grafico a barre
     fig_pyramid = px.bar(
@@ -587,14 +593,15 @@ if not df_bonus.empty:
         barmode='overlay',
         bargap=0.1
     )
-    
+    max_val = max(abs(df_pyramid['count'].min()), df_pyramid['count'].max())
+    dynamic_margin = max_val * 1.2
         # Modifica i tick dell'asse X per mostrare valori positivi e centra lo zero
     fig_pyramid.update_xaxes(
         tickmode='array',
         tickvals=[-50, -20, -10, 0, 10, 20, 50],
         ticktext=['50', '20', '10', '0', '10', '20', '50'],
         title="Numero di Tiri",
-        range=[-max(abs(df_pyramid['count'].min()), df_pyramid['count'].max())-2, max(abs(df_pyramid['count'].min()), df_pyramid['count'].max())+2]
+        range=[-dynamic_margin, dynamic_margin]
     )
     
     # Inverte l'asse Y (autorange="reversed") per scambiare l'ordine dei gradi (es. duri in basso, facili in alto)
@@ -710,7 +717,7 @@ else:
     st.info("Nessun dato per i filtri selezionati.")
 # --- SEZIONE 3.1: BOULDER OUTDOOR ---
 st.markdown("---")
-st.header("🪨 Boulder Outdoor")
+st.markdown("#### 🏆🪨 I Migliori Boulder Outdoor Completati")
 df_boulder_filt_outdoor = df_lines[(df_lines['climbing_type'].isin(['rock boulder'])) & (df_lines['status'].isin(['on sight', 'flash', 'on sight / flash','redpoint']))].copy()
 if not df_boulder_filt_outdoor.empty:
     # 1. Convertiamo la colonna status in Categorical usando l'ordine della tua lista
