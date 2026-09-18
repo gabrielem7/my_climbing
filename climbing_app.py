@@ -40,7 +40,7 @@ def load_and_clean_data():
     grade_order_rope = {grade: i for i, grade in enumerate(list_grades_rope)}
     
     # 4. Scala Boulder
-    list_grades_boulder = ['blu', 'verde', 'gialla']
+    list_grades_boulder = ['blu', 'verde', 'gialla', 'arancione','rossa', 'nero']
     grade_order_boulder = {grade: i for i, grade in enumerate(list_grades_boulder)}
     
     return df_sessions, df_lines, list_grades_rope, grade_order_rope, list_grades_boulder, grade_order_boulder
@@ -461,12 +461,23 @@ if not df_rope_filt.empty:
     
     
     if not df_rope_filt.empty:
-        # Ordiniamo per grado numerico decrescente e per data più recente a parità di grado
-        df_best = df_rope_filt.sort_values(by=['grade_numeric', 'date'], ascending=[False, False])
-        
+        # 1. Convertiamo la colonna status in Categorical usando l'ordine della tua lista
+        df_best = df_rope_filt.copy()
+        df_best['status'] = pd.Categorical(
+            df_best['status'], 
+            categories=list_status_order, 
+            ordered=True
+        )
+
+        # 2. Ora ordiniamo usando il nome della colonna 'status'. 
+        df_best = df_best.sort_values(
+            by=['grade_numeric', 'status', 'date'], 
+            ascending=[False, True, False]  # NOTA: True per status se vuoi on-sight (indice 0) per primo
+        )
+
         # Prendiamo i top 20 e le colonne più rilevanti
         df_best_view = df_best[['date', 'description', 'name', 'grade', 'status', 'attempt', 'climbing_style','holds_type', 'comment']].head(50).copy()
-        df_best_view['date'] = df_best_view['date'].dt.strftime('%d/%m/%Y')
+        df_best_view['date'] = df_best_view['date'].dt.strftime('%Y-%m-%d')
         
         # Rinominiamo per estetica
         df_best_view = df_best_view.rename(columns={
@@ -660,7 +671,7 @@ if not df_boulder_filt.empty:
     met_b_6.empty()
     # --- PIRAMIDE BLOCCHI NEL TEMPO ---
     df_bp_month = df_boulder_filt.groupby([time_col, 'grade']).size().reset_index(name='count')
-    fig_bp_m = px.bar(df_bp_month, x=time_col, y='count', color='grade', title="Volume Blocchi nel Tempo",
+    fig_bp_m = px.bar(df_bp_month, x=time_col, y='count', color='grade', title="Volume Blocchi Indoor nel Tempo",
                       color_discrete_map=color_map_boulder, 
                       category_orders={'grade': list_grades_boulder})
                       
@@ -687,7 +698,7 @@ if not df_boulder_filt.empty:
     df_bm_stat['max_grade'] = df_bm_stat['grade_numeric'].map(reverse_boulder)
     
     fig_bm_stat = px.line(df_bm_stat, x=time_col, y='max_grade', color='status', markers=True, 
-                          title="Max Colore per Status",
+                          title="Max Colore Indoor per Status",
                           color_discrete_map=color_map_status,
                           category_orders={'status': list_status_order})
                           
@@ -697,7 +708,39 @@ if not df_boulder_filt.empty:
     st.plotly_chart(fig_bm_stat,  width='stretch')  
 else:
     st.info("Nessun dato per i filtri selezionati.")
+# --- SEZIONE 3.1: BOULDER OUTDOOR ---
+st.markdown("---")
+st.header("🪨 Boulder Outdoor")
+df_boulder_filt_outdoor = df_lines[(df_lines['climbing_type'].isin(['rock boulder'])) & (df_lines['status'].isin(['on sight', 'flash', 'on sight / flash','redpoint']))].copy()
+if not df_boulder_filt_outdoor.empty:
+    # 1. Convertiamo la colonna status in Categorical usando l'ordine della tua lista
+    df_best_b = df_boulder_filt_outdoor.copy()
+    df_best_b['status'] = pd.Categorical(
+        df_best_b['status'], 
+        categories=list_status_order, 
+        ordered=True
+    )
 
+    # 2. Ora ordiniamo usando il nome della colonna 'status'. 
+    df_best_b = df_best_b.sort_values(
+        by=['grade', 'status', 'date'], 
+        ascending=[False, True, False]
+    )  
+
+    # Prendiamo i top 20 e le colonne più rilevanti
+    df_best_b_view = df_best_b[['date', 'description', 'name', 'grade', 'status', 'attempt', 'climbing_style','holds_type', 'comment']].head(50).copy()
+    df_best_b_view['date'] = df_best_b_view['date'].dt.strftime('%Y-%m-%d')
+    
+    # Rinominiamo per estetica
+    df_best_b_view = df_best_b_view.rename(columns={
+        'date': 'Data', 'description': 'Luogo', 'name': 'Via', 
+        'grade': 'Grado', 'status': 'Status', 'attempt': 'Tentativo', 'climbing_style': 'Tipo',
+        'holds_type': 'Stile', 'comment': 'Note'
+    })
+    
+    st.dataframe(df_best_b_view,  width='stretch', hide_index=True)
+else:
+    st.info("Nessun dato Boulder Outdoor disponibile per questo incrocio di filtri.")
 # --- SEZIONE 4: MULTIPITCH ---
 st.markdown("---")
 st.header("⛰️ Multipitch")
@@ -725,7 +768,7 @@ if not df_multi.empty:
     col_d.metric("🔥 Grado massimo in via", f"{max_grade_vie_lunghe}")
     # IMPORTANTE: Aggiunto 'name' e 'is_finished' all'estrazione per evitare errori
     df_multi_view = df_multi[['date', 'description', 'name', 'grade', 'comment', 'is_trad', 'is_finished']].sort_values('date', ascending=False)
-    df_multi_view['date'] = df_multi_view['date'].dt.strftime('%d/%m/%Y')
+    df_multi_view['date'] = df_multi_view['date'].dt.strftime('%Y-%m-%d')
     
     def format_description(row):
         return f"🛡️ {row['description']}" if row['is_trad'] else row['description']
