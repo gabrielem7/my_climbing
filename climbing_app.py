@@ -255,8 +255,7 @@ fig_vol = px.bar(df_vol, x=time_col, y='sessions', color='climbing_type',
 
 fig_vol.update_layout(
     title_text="Numero di Sessioni Periodo Selezionato",
-    title_font=dict(size=14),
-    xaxis_title="Periodo Selezionato", 
+    title_font=dict(size=14), 
     yaxis_title="Sessioni", 
     legend_title="", # Tolgo il titolo "climbing_type" per risparmiare spazio
     margin=dict(l=0, r=0, t=40, b=0),
@@ -275,7 +274,10 @@ fig_vol.add_trace(go.Scatter(
     showlegend=False,
     hoverinfo='skip'
 ))
-fig_vol.update_xaxes(categoryorder='category ascending')
+if time_col == 'year': 
+    fig_vol.update_xaxes(type='category', categoryorder='category ascending')
+else: 
+    fig_vol.update_xaxes(categoryorder='category ascending')
 st.plotly_chart(fig_vol,  width='stretch')
 
 ########################################################################################################################
@@ -378,6 +380,7 @@ if not df_rope_filt.empty:
     
     fig_pyr = px.bar(df_pyramid, x='count', y='grade_grouped', color='status', orientation='h', 
                      title="Piramide dei Gradi Globale", text='text_label',
+                     labels={'count': 'Numero di Tiri', 'grade_grouped': 'Grado', 'status': 'Status'},
                      color_discrete_map=color_map_status,
                      category_orders={'status': list_status_order, 'grade_grouped': list_grades_grouped})
                      
@@ -401,7 +404,8 @@ if not df_rope_filt.empty:
     
     # 5. TESTO INTERNO (DRITTO E DENTRO LA BARRA)
     fig_pyr.update_traces(textangle=0, textposition='inside', selector=dict(type="bar"))
-    fig_pyr.update_yaxes(categoryorder='category ascending')
+    # Forziamo Plotly a usare esattamente questo ordine fisso sull'asse Y
+    fig_pyr.update_yaxes(categoryorder='array', categoryarray=list_grades_grouped) ## non serve if per la timeline
     st.plotly_chart(fig_pyr, width='stretch')
 
     # Creiamo un dataframe temporaneo assegnando la nuova colonna per non intaccare gli altri grafici
@@ -412,7 +416,7 @@ if not df_rope_filt.empty:
     
     fig_pyr_m = px.bar(df_pyr_month, x=time_col, y='count', color='grade_grouped', 
                        title="Volume Gradi nel Tempo",
-                       labels={'grade_grouped': 'Grado'},
+                       labels={'grade_grouped': 'Grado', 'count': 'Numero di Tiri'},
                        color_discrete_map=color_map_grades, # <-- APPLICA LA SCALA COLORI PROGRESSIVA
                        category_orders={'grade_grouped': list_grades_grouped})
                        
@@ -427,7 +431,10 @@ if not df_rope_filt.empty:
         hoverinfo='skip'
     ))
     fig_pyr_m.update_layout(margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
-    fig_pyr_m.update_xaxes(categoryorder='category ascending')
+    if time_col == 'year': 
+        fig_pyr_m.update_xaxes(type='category', categoryorder='category ascending')
+    else: 
+        fig_pyr_m.update_xaxes(categoryorder='category ascending')
     st.plotly_chart(fig_pyr_m,  width='stretch')
 
 
@@ -436,10 +443,14 @@ if not df_rope_filt.empty:
     df_max['max_grade'] = df_max['grade_grouped_numeric'].map(reverse_rope_grouped)
     
     fig_max = px.line(df_max, x=time_col, y='max_grade', markers=True, title="Grado Massimo nel Tempo",
+                      labels={'max_grade': 'Grado'},
                       category_orders={'max_grade': list_grades_grouped})
     fig_max.update_layout(margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
     fig_max.update_yaxes(categoryorder='array', categoryarray=list_grades_grouped)
-    fig_max.update_xaxes(type='category', categoryorder='category ascending')
+    if time_col == 'year': 
+        fig_max.update_xaxes(type='category', categoryorder='category ascending')
+    else: 
+        fig_max.update_xaxes(categoryorder='category ascending')
     st.plotly_chart(fig_max,  width='stretch')
 
     df_max_stat = df_rope_filt.groupby([time_col, 'status'])['grade_grouped_numeric'].max().reset_index()
@@ -449,10 +460,14 @@ if not df_rope_filt.empty:
     fig_max_stat = px.line(df_max_stat, x=time_col, y='max_grade', color='status', markers=True, 
                            title="Max Grado nel Tempo per Status",
                            color_discrete_map=color_map_status,
+                           labels={'max_grade': 'Grado', 'status': 'Status'},
                            category_orders={'max_grade': list_grades_grouped, 'status': list_status_order})
     fig_max_stat.update_layout(margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
     fig_max_stat.update_yaxes(categoryorder='array', categoryarray=list_grades_grouped)
-    fig_max_stat.update_xaxes(type='category', categoryorder='category ascending')
+    if time_col == 'year': 
+        fig_max_stat.update_xaxes(type='category', categoryorder='category ascending')
+    else: 
+        fig_max_stat.update_xaxes(categoryorder='category ascending')
     st.plotly_chart(fig_max_stat,  width='stretch')
     
     # 2.5 Tabella Migliori Tiri
@@ -541,19 +556,27 @@ if not df_bonus.empty:
     fig_bonus_max = px.line(df_bonus_max, x=time_col, y='max_grade', color='climbing_type', markers=True,
                             title="Andamento Max Grado",
                             color_discrete_map={'indoor climbing': '#ff3333', 'rock climbing': '#0062cc'},
+                            labels={'max_grade': 'Grado', 'climbing_type': 'Tipo di Arrampicata'},
                             category_orders={'max_grade': list_grades_grouped})
     fig_bonus_max.update_layout(margin=dict(l=0, r=0, t=40, b=0), legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5, title=""))
     fig_bonus_max.update_yaxes(categoryorder='array', categoryarray=list_grades_grouped)
-    fig_bonus_max.update_xaxes(type='category', categoryorder='category ascending')
+    if time_col == 'year': 
+        fig_bonus_max.update_xaxes(type='category', categoryorder='category ascending')
+    else: 
+        fig_bonus_max.update_xaxes(categoryorder='category ascending')
     st.plotly_chart(fig_bonus_max, use_container_width=True)
     # GRAFICO 2: Volume (Numero di tiri) nel tempo
     df_bonus_vol = df_bonus.groupby([time_col, 'climbing_type']).size().reset_index(name='count')
     
     fig_bonus_vol = px.bar(df_bonus_vol, x=time_col, y='count', color='climbing_type', barmode='group',
                             title="Volume Tiri Completati",
-                            color_discrete_map={'indoor climbing': '#ff3333', 'rock climbing': '#0062cc'})
+                            color_discrete_map={'indoor climbing': '#ff3333', 'rock climbing': '#0062cc'},
+                            labels={'count': 'Numero di Tiri', 'climbing_type': 'Tipo di Arrampicata'})
     fig_bonus_vol.update_layout(margin=dict(l=0, r=0, t=40, b=0), legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5, title=""))
-    fig_bonus_vol.update_xaxes(type='category', categoryorder='category ascending')
+    if time_col == 'year': 
+        fig_bonus_vol.update_xaxes(type='category', categoryorder='category ascending')
+    else: 
+        fig_bonus_vol.update_xaxes(categoryorder='category ascending')
     st.plotly_chart(fig_bonus_vol, use_container_width=True)
     # GRAFICO 3: Piramide della distribuzione dei gradi (Indoor a SX vs Outdoor a DX)
     # 1. Raggruppa i dati per grado raggruppato e tipo di arrampicata
@@ -582,6 +605,7 @@ if not df_bonus.empty:
         color='climbing_type',
         orientation='h',
         text='text_label',
+        labels={'grade_grouped': 'Grado', 'count_plot': 'Numero di Tiri', 'climbing_type': 'Tipo di Arrampicata'},
         title="Piramide Distribuzione Gradi (Indoor vs Outdoor)",
         color_discrete_map={'indoor climbing': '#ff3333', 'rock climbing': '#0062cc'},
         category_orders={'grade_grouped': list_grades_grouped} 
@@ -601,7 +625,6 @@ if not df_bonus.empty:
         tickmode='array',
         tickvals=[-50, -20, -10, 0, 10, 20, 50],
         ticktext=['50', '20', '10', '0', '10', '20', '50'],
-        title="Numero di Tiri",
         range=[-dynamic_margin, dynamic_margin]
     )
     
@@ -681,6 +704,7 @@ if not df_boulder_filt.empty:
     df_bp_month = df_boulder_filt.groupby([time_col, 'grade']).size().reset_index(name='count')
     fig_bp_m = px.bar(df_bp_month, x=time_col, y='count', color='grade', title="Volume Blocchi Indoor nel Tempo",
                       color_discrete_map=color_map_boulder, 
+                      labels={'count': 'Numero di Blocchi', 'grade': 'Grado'},
                       category_orders={'grade': list_grades_boulder})
                       
     fig_bp_m.update_layout(margin=dict(l=0, r=0, t=40, b=0), legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
@@ -697,7 +721,10 @@ if not df_boulder_filt.empty:
         showlegend=False,
         hoverinfo='skip'
     ))
-    fig_bp_m.update_xaxes(type='category', categoryorder='category ascending')
+    if time_col == 'year': 
+        fig_bp_m.update_xaxes(type='category', categoryorder='category ascending') 
+    else: 
+        fig_bp_m.update_xaxes(categoryorder='category ascending')
     st.plotly_chart(fig_bp_m,  width='stretch')
 
     # --- GRAFICO LINEE GRADO MASSIMO ---
@@ -708,11 +735,15 @@ if not df_boulder_filt.empty:
     fig_bm_stat = px.line(df_bm_stat, x=time_col, y='max_grade', color='status', markers=True, 
                           title="Max Colore Indoor per Status",
                           color_discrete_map=color_map_status,
+                          labels={'max_grade': 'Grado', 'status': 'Status'},
                           category_orders={'status': list_status_order})
                           
     fig_bm_stat.update_layout(margin=dict(l=0, r=0, t=40, b=0), legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
     fig_bm_stat.update_yaxes(categoryorder='array', categoryarray=list_grades_boulder) 
-    fig_bm_stat.update_xaxes(type='category', categoryorder='category ascending')
+    if time_col == 'year': 
+        fig_bm_stat.update_xaxes(type='category', categoryorder='category ascending')
+    else: 
+        fig_bm_stat.update_xaxes(categoryorder='category ascending')
     st.plotly_chart(fig_bm_stat,  width='stretch')  
 else:
     st.info("Nessun dato per i filtri selezionati.")
