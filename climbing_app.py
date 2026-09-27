@@ -439,7 +439,7 @@ if not df_rope_filt.empty:
                       category_orders={'max_grade': list_grades_grouped})
     fig_max.update_layout(margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
     fig_max.update_yaxes(categoryorder='array', categoryarray=list_grades_grouped)
-    fig_max.update_xaxes(categoryorder='category ascending')
+    fig_max.update_xaxes(type='category', categoryorder='category ascending')
     st.plotly_chart(fig_max,  width='stretch')
 
     df_max_stat = df_rope_filt.groupby([time_col, 'status'])['grade_grouped_numeric'].max().reset_index()
@@ -452,7 +452,7 @@ if not df_rope_filt.empty:
                            category_orders={'max_grade': list_grades_grouped, 'status': list_status_order})
     fig_max_stat.update_layout(margin=dict(l=0, r=0, t=40, b=0),legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
     fig_max_stat.update_yaxes(categoryorder='array', categoryarray=list_grades_grouped)
-    fig_max_stat.update_xaxes(categoryorder='category ascending')
+    fig_max_stat.update_xaxes(type='category', categoryorder='category ascending')
     st.plotly_chart(fig_max_stat,  width='stretch')
     
     # 2.5 Tabella Migliori Tiri
@@ -544,7 +544,7 @@ if not df_bonus.empty:
                             category_orders={'max_grade': list_grades_grouped})
     fig_bonus_max.update_layout(margin=dict(l=0, r=0, t=40, b=0), legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5, title=""))
     fig_bonus_max.update_yaxes(categoryorder='array', categoryarray=list_grades_grouped)
-    fig_bonus_max.update_xaxes(categoryorder='category ascending')
+    fig_bonus_max.update_xaxes(type='category', categoryorder='category ascending')
     st.plotly_chart(fig_bonus_max, use_container_width=True)
     # GRAFICO 2: Volume (Numero di tiri) nel tempo
     df_bonus_vol = df_bonus.groupby([time_col, 'climbing_type']).size().reset_index(name='count')
@@ -553,7 +553,7 @@ if not df_bonus.empty:
                             title="Volume Tiri Completati",
                             color_discrete_map={'indoor climbing': '#ff3333', 'rock climbing': '#0062cc'})
     fig_bonus_vol.update_layout(margin=dict(l=0, r=0, t=40, b=0), legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5, title=""))
-    fig_bonus_vol.update_xaxes(categoryorder='category ascending')
+    fig_bonus_vol.update_xaxes(type='category', categoryorder='category ascending')
     st.plotly_chart(fig_bonus_vol, use_container_width=True)
     # GRAFICO 3: Piramide della distribuzione dei gradi (Indoor a SX vs Outdoor a DX)
     # 1. Raggruppa i dati per grado raggruppato e tipo di arrampicata
@@ -697,7 +697,7 @@ if not df_boulder_filt.empty:
         showlegend=False,
         hoverinfo='skip'
     ))
-    fig_bp_m.update_xaxes(categoryorder='category ascending')
+    fig_bp_m.update_xaxes(type='category', categoryorder='category ascending')
     st.plotly_chart(fig_bp_m,  width='stretch')
 
     # --- GRAFICO LINEE GRADO MASSIMO ---
@@ -712,7 +712,7 @@ if not df_boulder_filt.empty:
                           
     fig_bm_stat.update_layout(margin=dict(l=0, r=0, t=40, b=0), legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
     fig_bm_stat.update_yaxes(categoryorder='array', categoryarray=list_grades_boulder) 
-    fig_bm_stat.update_xaxes(categoryorder='category ascending')
+    fig_bm_stat.update_xaxes(type='category', categoryorder='category ascending')
     st.plotly_chart(fig_bm_stat,  width='stretch')  
 else:
     st.info("Nessun dato per i filtri selezionati.")
