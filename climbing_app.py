@@ -139,6 +139,17 @@ merge_flash_os = st.sidebar.checkbox("Accorpa Flash e On Sight")
 if merge_flash_os:
     df_lines['status'] = df_lines['status'].replace({'flash': 'on sight / flash', 'on sight': 'on sight / flash'})
 
+# 3. The Interactivity Toggle (Defaults to False / Static View)
+enable_interactivity = st.sidebar.checkbox("Enable Graph Interactivity", value=False)
+
+# Define Plotly configuration based on the toggle
+# If enable_interactivity is False, staticPlot becomes True (locks the graph)
+chart_config = {
+    'staticPlot': not enable_interactivity,
+    'displayModeBar': enable_interactivity  # Hides the hovering menu when static
+}
+
+
 ########################################################################################################################
 
 # --- SEZIONE 1: GENERALE ---
@@ -261,6 +272,7 @@ fig_vol.update_layout(
     margin=dict(l=0, r=0, t=40, b=0),
     legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5)
 )
+
 # Calcola i totali per mese
 df_vol_totals = df_vol.groupby(time_col)['sessions'].sum().reset_index()
 
@@ -278,7 +290,7 @@ if time_col == 'year':
     fig_vol.update_xaxes(type='category', categoryorder='category ascending')
 else: 
     fig_vol.update_xaxes(categoryorder='category ascending')
-st.plotly_chart(fig_vol,  width='stretch')
+st.plotly_chart(fig_vol, config=chart_config,  width='stretch')
 
 ########################################################################################################################
 
@@ -406,7 +418,7 @@ if not df_rope_filt.empty:
     fig_pyr.update_traces(textangle=0, textposition='inside', selector=dict(type="bar"))
     # Forziamo Plotly a usare esattamente questo ordine fisso sull'asse Y
     fig_pyr.update_yaxes(categoryorder='array', categoryarray=list_grades_grouped) ## non serve if per la timeline
-    st.plotly_chart(fig_pyr, width='stretch')
+    st.plotly_chart(fig_pyr, config=chart_config, width='stretch')
 
     # Creiamo un dataframe temporaneo assegnando la nuova colonna per non intaccare gli altri grafici
     df_temp_pyr = df_rope_filt.assign(grade_grouped=df_rope_filt['grade'].apply(group_grade))
@@ -435,7 +447,7 @@ if not df_rope_filt.empty:
         fig_pyr_m.update_xaxes(type='category', categoryorder='category ascending')
     else: 
         fig_pyr_m.update_xaxes(categoryorder='category ascending')
-    st.plotly_chart(fig_pyr_m,  width='stretch')
+    st.plotly_chart(fig_pyr_m, config=chart_config,  width='stretch')
 
 
     df_max = df_rope_filt.groupby([time_col])['grade_grouped_numeric'].max().reset_index()
@@ -451,7 +463,7 @@ if not df_rope_filt.empty:
         fig_max.update_xaxes(type='category', categoryorder='category ascending')
     else: 
         fig_max.update_xaxes(categoryorder='category ascending')
-    st.plotly_chart(fig_max,  width='stretch')
+    st.plotly_chart(fig_max, config=chart_config,  width='stretch')
 
     df_max_stat = df_rope_filt.groupby([time_col, 'status'])['grade_grouped_numeric'].max().reset_index()
     df_max_stat = df_max_stat.sort_values(by=time_col)
@@ -468,7 +480,7 @@ if not df_rope_filt.empty:
         fig_max_stat.update_xaxes(type='category', categoryorder='category ascending')
     else: 
         fig_max_stat.update_xaxes(categoryorder='category ascending')
-    st.plotly_chart(fig_max_stat,  width='stretch')
+    st.plotly_chart(fig_max_stat, config=chart_config,  width='stretch')
     
     # 2.5 Tabella Migliori Tiri
     st.markdown("#### 🏆 I Migliori Tiri Completati")
@@ -564,7 +576,7 @@ if not df_bonus.empty:
         fig_bonus_max.update_xaxes(type='category', categoryorder='category ascending')
     else: 
         fig_bonus_max.update_xaxes(categoryorder='category ascending')
-    st.plotly_chart(fig_bonus_max, use_container_width=True)
+    st.plotly_chart(fig_bonus_max, config=chart_config, width='stretch')
     # GRAFICO 2: Volume (Numero di tiri) nel tempo
     df_bonus_vol = df_bonus.groupby([time_col, 'climbing_type']).size().reset_index(name='count')
     
@@ -577,7 +589,7 @@ if not df_bonus.empty:
         fig_bonus_vol.update_xaxes(type='category', categoryorder='category ascending')
     else: 
         fig_bonus_vol.update_xaxes(categoryorder='category ascending')
-    st.plotly_chart(fig_bonus_vol, use_container_width=True)
+    st.plotly_chart(fig_bonus_vol, config=chart_config, width='stretch')
     # GRAFICO 3: Piramide della distribuzione dei gradi (Indoor a SX vs Outdoor a DX)
     # 1. Raggruppa i dati per grado raggruppato e tipo di arrampicata
     df_pyramid = df_bonus.groupby(['grade_grouped', 'climbing_type']).size().reset_index(name='count')
@@ -632,7 +644,7 @@ if not df_bonus.empty:
     fig_pyramid.update_yaxes(title="Grado", autorange="reversed")
     fig_pyramid.update_traces(textposition='outside')
     
-    st.plotly_chart(fig_pyramid, use_container_width=True)
+    st.plotly_chart(fig_pyramid, config=chart_config, width='stretch')
 
 
 else:
@@ -725,7 +737,7 @@ if not df_boulder_filt.empty:
         fig_bp_m.update_xaxes(type='category', categoryorder='category ascending') 
     else: 
         fig_bp_m.update_xaxes(categoryorder='category ascending')
-    st.plotly_chart(fig_bp_m,  width='stretch')
+    st.plotly_chart(fig_bp_m, config=chart_config,   width='stretch')
 
     # --- GRAFICO LINEE GRADO MASSIMO ---
     df_bm_stat = df_boulder_filt.groupby([time_col, 'status'])['grade_numeric'].max().reset_index()
@@ -744,7 +756,7 @@ if not df_boulder_filt.empty:
         fig_bm_stat.update_xaxes(type='category', categoryorder='category ascending')
     else: 
         fig_bm_stat.update_xaxes(categoryorder='category ascending')
-    st.plotly_chart(fig_bm_stat,  width='stretch')  
+    st.plotly_chart(fig_bm_stat, config=chart_config, width='stretch')  
 else:
     st.info("Nessun dato per i filtri selezionati.")
 # --- SEZIONE 3.1: BOULDER OUTDOOR ---
